@@ -537,3 +537,51 @@ The Operations stage will eventually include:
 - Application code: Workspace root (NEVER in aidlc-docs/)
 - Documentation: aidlc-docs/ only
 - Project structure: See code-generation.md for patterns by project type
+
+---
+
+## コミットメッセージルール
+
+コミットを作成する際は、必ず以下の形式に従うこと。
+
+### フォーマット
+
+```
+<type>: <日本語メッセージ>
+<type>(<scope>): <日本語メッセージ>
+```
+
+### 使用可能な type
+
+| type | 用途 |
+|------|------|
+| `feat` | 新機能の追加 |
+| `fix` | バグ修正 |
+| `docs` | ドキュメントの変更 |
+| `style` | コードスタイルの変更（動作に影響なし） |
+| `refactor` | リファクタリング |
+| `test` | テストの追加・修正 |
+| `chore` | ビルドプロセス・補助ツールの変更 |
+| `build` | ビルドシステムの変更 |
+| `ci` | CI設定の変更 |
+| `perf` | パフォーマンス改善 |
+| `revert` | コミットの取り消し |
+| `add` | ファイル・設定の追加 |
+| `update` | 既存機能の更新 |
+| `remove` | ファイル・機能の削除 |
+
+### 例
+
+```
+feat: ログイン機能を追加
+fix(auth): トークン期限切れのバグを修正
+docs: READMEを更新
+ci: コミットメッセージチェックのワークフローを追加
+add: AWS AI-DLC ワークフロールールを追加
+```
+
+### 注意事項
+
+- メッセージ部分は日本語で書くこと
+- type は英小文字のみ
+- `:` の後に半角スペースを入れること
