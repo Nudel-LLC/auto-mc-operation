@@ -14,25 +14,25 @@
 ## 1. Story 開発の方法論(plan の概要)
 以下のステップで User Stories を作成します。各ステップに **チェックボックス** を付けて Part 2 で進捗管理します。
 
-- [ ] **S-1**: 要件定義書から **ペルソナ** を抽出・記述する(`personas.md`)
-- [ ] **S-2**: 業務フローを論理的なエピックに分解する
-- [ ] **S-3**: 各エピック配下に「As a... I want... so that...」形式の **User Story** を作成する
-- [ ] **S-4**: 各 Story に **INVEST 原則**(Independent / Negotiable / Valuable / Estimable / Small / Testable)を満たすよう調整する
-- [ ] **S-5**: 各 Story に **受入条件**(Acceptance Criteria)を付与する
-- [ ] **S-6**: ペルソナと Story のマッピング表を作成する
-- [ ] **S-7**: エッジケース・エラーシナリオを別 Story として明示する(必要箇所)
-- [ ] **S-8**: 要件(FR-1〜FR-8 / NFR-1〜NFR-8)と Story のトレーサビリティ表を作成する
-- [ ] **S-9**: 成果物 `personas.md` と `stories.md` を `aidlc-docs/inception/user-stories/` に保存する
+- [x] **S-1**: 要件定義書から **ペルソナ** を抽出・記述する(`personas.md`)
+- [x] **S-2**: 業務フローを論理的なエピックに分解する
+- [x] **S-3**: 各エピック配下に「As a... I want... so that...」形式の **User Story** を作成する
+- [x] **S-4**: 各 Story に **INVEST 原則**(Independent / Negotiable / Valuable / Estimable / Small / Testable)を満たすよう調整する
+- [x] **S-5**: 各 Story に **受入条件**(Acceptance Criteria)を付与する
+- [x] **S-6**: ペルソナと Story のマッピング表を作成する
+- [x] **S-7**: エッジケース・エラーシナリオを別 Story として明示する(必要箇所)
+- [x] **S-8**: 要件(FR-1〜FR-8 / NFR-1〜NFR-8)と Story のトレーサビリティ表を作成する
+- [x] **S-9**: 成果物 `personas.md` と `stories.md` を `aidlc-docs/inception/user-stories/` に保存する
 
 ---
 
 ## 2. 必須成果物(plan に含めること)
-- [ ] `aidlc-docs/inception/user-stories/personas.md` を生成
-- [ ] `aidlc-docs/inception/user-stories/stories.md` を生成
-- [ ] 各 Story が INVEST 原則に準拠
-- [ ] 各 Story に受入条件(Acceptance Criteria)を付与
-- [ ] ペルソナと Story のマッピング
-- [ ] FR/NFR と Story のトレーサビリティ
+- [x] `aidlc-docs/inception/user-stories/personas.md` を生成
+- [x] `aidlc-docs/inception/user-stories/stories.md` を生成
+- [x] 各 Story が INVEST 原則に準拠
+- [x] 各 Story に受入条件(Acceptance Criteria)を付与
+- [x] ペルソナと Story のマッピング
+- [x] FR/NFR と Story のトレーサビリティ
 
 ---
 

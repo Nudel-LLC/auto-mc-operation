@@ -234,3 +234,22 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 11〜13 (Avoid Implementation Details / Log Approval Prompt / Wait for Plan Approval)
 
 ---
+
+## User Stories — Plan Approval & Part 2 Generation
+**Timestamp**: 2026-05-01T07:50:00Z
+**User Input**: "承認します。"(Plan 承認)
+**AI Response**:
+- Plan 承認を受けて Part 2: Generation を実施
+- `aidlc-docs/inception/user-stories/personas.md` を生成(P1: MC/コンパニオン本人 1 ペルソナ)
+- `aidlc-docs/inception/user-stories/stories.md` を生成(計 54 Story)
+  - Foundation Epic: 7 Story(F-01〜F-07)
+  - MVP Use Case Epic 1〜8: 47 Story(F1〜F8 機能領域、業務フロー順、エッジケース独立)
+  - Phase 2 Epic: 7 Story(タイトル+概要のみ)
+- 各 Story に Given-When-Then 受入条件、MoSCoW 優先度、S/M/L サイズ、トレーサビリティ付与
+- story-generation-plan.md の S-1〜S-9 と必須成果物のチェックボックスを [x] に更新
+- aidlc-state.md を Part 2 完了状態に更新
+- ユーザーの最終承認待ち (GATE: Step 19〜21)
+**Approval Prompt Logged**: 「`personas.md` と `stories.md` をご確認ください。承認後 Workflow Planning に進みます」
+**Context**: INCEPTION - User Stories Step 14〜21 (Approval Recorded / Generation Executed / Awaiting Final Approval)
+
+---
