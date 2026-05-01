@@ -253,3 +253,19 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 14〜21 (Approval Recorded / Generation Executed / Awaiting Final Approval)
 
 ---
+
+## User Stories — Persona Addition Feedback (PR #3 Review Comment)
+**Timestamp**: 2026-05-01T08:17:05Z
+**User Input**: "1人目はだいたい大丈夫です。2人目として、年代が30歳前後のAIに全く触ったことない人も追加してください"
+**AI Response**:
+- personas.md に **P2: 中村 ゆかり**(30 歳前後 / AI 未経験 / MC・コンパニオン)を追加
+- P1 / P2 比較表を追加し、ユーザー向けメッセージングは P2 を最低基準とする方針を明記
+- stories.md の構成方針セクションに P2 ペルソナ反映の方針を追記
+- F-08「ユーザー向けメッセージング規約の整備(P2 対応)」を新規 Enabler Story として追加
+- F-03(OAuth) に AC-6(P2 配慮: ガイド付き誘導)を追加
+- F-07(プライバシー同意) に AC-5(P2 配慮: 3 行サマリ)を追加
+- トレーサビリティ表と統計を更新(Foundation 7→8 Story、合計 54→55 Story)
+- ユーザーの追加修正 or 承認待ち
+**Context**: INCEPTION - User Stories Step 21 (Iteration on Generated Stories)
+
+---
