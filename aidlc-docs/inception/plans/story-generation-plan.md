@@ -258,7 +258,7 @@ B) **Story 数が多すぎる → 中粒度 (Q2 を B 相当) に変更し、合
 C) **Foundation Epic を含めない**(基盤系は Workflow Planning / Application Design で別管理)
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ---
 
@@ -272,13 +272,87 @@ B) **本当に 1 Story = 1 受入条件**(極端に細かい、推奨しない)
 C) **1 Story = 1 ユーザーアクション、受入条件は 1 〜 2 個に絞る**(中間)
 X) Other (please describe after [Answer]: tag below)
 
-[Answer]: 
+[Answer]: A
 
 ---
 
-## 8. 回答後
+## 8. Final Plan(承認用サマリ)
 
-Cl-S1, Cl-S2 にご回答いただいた後:
-1. Plan を最終確定
-2. **Part 1: Planning 承認** を求めます
-3. 承認後、**Part 2: Generation** で `personas.md` と `stories.md` を作成
+すべての質問が解消したため、最終的な User Stories Generation Plan を以下に確定します。
+
+### 8.1 ペルソナ
+- **プライマリのみ**: MC / コンパニオン本人(Q1 = A)
+
+### 8.2 Story 構成
+- **Foundation Epic**(基盤・最初に開発): 5〜10 Story(Enabler Stories 中心)
+  - F-01: ディレクトリ構成・開発ルール整備
+  - F-02: Cloudflare 基盤セットアップ(Workers / D1 / KV / R2 / Queues / Cron / Durable Objects)
+  - F-03: Google OAuth(Gmail / Calendar)認可フロー
+  - F-04: LINE Messaging API Bot 連携セットアップ
+  - F-05: Anthropic API クライアント整備
+  - F-06: 構造化ロギング・監査ログ基盤(NFR-4 SECURITY-03 / NFR-8 対応)
+  - F-07: プライバシーポリシー・同意管理基盤(NFR-5 対応)
+- **MVP Use Case Epics**(F1〜F8 の Feature Sub-Epic、配下を業務フロー順): 50〜80 Story
+  - Use Case 1: メール受信〜分類(F1)
+  - Use Case 2: 案件情報抽出(F2)
+  - Use Case 3: カレンダー空き確認(F3)
+  - Use Case 4: エントリー下書き作成(F4)
+  - Use Case 5: LINE 通知(F5)
+  - Use Case 6: カレンダー自動管理(F6)
+  - Use Case 7: 辞退連絡 半自動(F7)
+  - Use Case 8: 請求 CSV エクスポート(F8)
+- **Phase 2 Epic**(タイトル + 概要のみ、Q5 = B): 5〜10 Story
+- **合計**: 60〜100 Story
+
+### 8.3 Story 粒度・フォーマット
+- **粒度**(Cl-S2 = A): **最小ユーザーアクション = 1 Story**、各 Story に **複数の受入条件**(3〜5 個)
+- **フォーマット**:
+  ```markdown
+  ### Story <ID>: <タイトル>
+  **As a** MC / コンパニオン (プライマリペルソナ)
+  **I want** [何をしたい]
+  **so that** [なぜ・どんな価値]
+
+  **Priority**: MUST / SHOULD / COULD (MoSCoW)
+  **Size**: S / M / L
+  **Type**: User Story / Enabler Story / Edge Case
+
+  **Acceptance Criteria** (Given-When-Then):
+  - **AC-1**:
+    - **Given** [前提条件]
+    - **When** [アクション]
+    - **Then** [期待結果]
+  - **AC-2**: ...
+
+  **Traceability**:
+  - Implements: FR-X, NFR-Y(個別 NFR まで, 例: SECURITY-05)
+  - Covers: <要件サマリ>
+  ```
+
+### 8.4 エッジケース(Q6 = B)
+- 各 Use Case Epic 内で **独立した Story** として記述
+- 例: 「U2-EC-01: 案件情報抽出が必須項目欠落で失敗した場合、ユーザーに LINE で警告通知される」
+
+### 8.5 トレーサビリティ(Q8 = B)
+- Story → FR/NFR の 1 対多マッピング
+- 受入条件 → 個別 NFR(SECURITY-XX, etc.)もマップ
+- `stories.md` 末尾にトレーサビリティ表を付与
+
+### 8.6 必須成果物
+- `aidlc-docs/inception/user-stories/personas.md`
+- `aidlc-docs/inception/user-stories/stories.md`
+- INVEST 原則準拠 / 受入条件付与 / マッピング / トレーサビリティ
+
+---
+
+## 9. 承認依頼
+
+> **📋 REVIEW REQUIRED:**
+> セクション 8 の Final Plan で User Stories の Part 2: Generation を実行して良いかご確認ください。
+
+> **🚀 WHAT'S NEXT?**
+>
+> **You may:**
+>
+> 🔧 **Request Changes** — 修正依頼があればお知らせください
+> ✅ **Approve & Continue** — 承認後、Part 2 で `personas.md` と `stories.md` を作成します

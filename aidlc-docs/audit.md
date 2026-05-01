@@ -218,3 +218,19 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 9〜10 (Analyze Answers / Mandatory Follow-up Questions)
 
 ---
+
+## User Stories — Cl-S1 / Cl-S2 Answers (PR #3 Review Comments)
+**Timestamp**: 2026-05-01T07:41:18Z
+**User Input**: PR #3 のレビューコメントとして 2 件回答
+- Cl-S1=A(Decided Approach で進める)
+- Cl-S2=A(最小ユーザーアクション = 1 Story、各 Story に複数の受入条件)
+**AI Response**:
+- 質問ファイルに回答を記録
+- Cl-S 系の曖昧さは解消
+- セクション 8: Final Plan(承認用サマリ)を追加 — ペルソナ/Story 構成/粒度・フォーマット/エッジケース/トレーサビリティ/必須成果物
+- セクション 9: 承認依頼を追加
+- ユーザーの Plan 承認待ち (GATE: Step 12〜13)
+**Approval Prompt Logged**: 「セクション 8 の Final Plan で User Stories の Part 2: Generation を実行して良いか?」
+**Context**: INCEPTION - User Stories Step 11〜13 (Avoid Implementation Details / Log Approval Prompt / Wait for Plan Approval)
+
+---
