@@ -157,3 +157,22 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Requirements Analysis Step 7-8 (Generate Requirements Document & Update State)
 
 ---
+
+## Requirements Analysis — Requirements.md Review Feedback (PR #3 Review Comments, Round 4)
+**Timestamp**: 2026-05-01T06:17:42Z
+**User Input**: PR #3 で requirements.md に対する 3 件のレビューコメント
+- line 120 (FR-2 抽出項目): 「複数日程、複数時間の場合も想定してください。」
+- line 228 (NFR-7 コスト): 「月額500円を想定しています。」
+- line 286 (8.2 前提): 「こちらはサービス提供側のキーを使う予定です。利用者はclaude契約している必要はありません。」
+**AI Response**:
+- FR-2: 単一 datetime → `schedules` 配列(複数日程・複数時間枠)に変更
+- FR-3: 各候補スロットを独立判定し集約結果を返す要件に更新
+- FR-6: 候補スロットを全て仮予定登録、決定時に他候補削除する要件に更新
+- FR-8: 確定スロット出力に明示
+- NFR-7: 月額 500 円/ユーザー(SaaS 価格目標)を追加、コスト構造の前提を明記
+- 8.2 前提: Anthropic API キーはサービス提供側保有(利用者契約不要)を追加
+- トレーサビリティ表に PR レビュー由来の更新を追記
+- 修正後の requirements.md を再承認待ち (GATE)
+**Context**: INCEPTION - Requirements Analysis Step 9 (Approval Loop, Round 2)
+
+---
