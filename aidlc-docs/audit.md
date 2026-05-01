@@ -199,3 +199,22 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 1〜7 (Validate Need / Create Plan / Generate Questions)
 
 ---
+
+## User Stories — Q1〜Q8 Answers (PR #3 Review Comments)
+**Timestamp**: 2026-05-01T07:22:52Z
+**User Input**: PR #3 のレビューコメントとして 8 件回答
+- Q1=A(プライマリのみ) / Q2=A(細粒度) / Q3=A(Given-When-Then)
+- Q4=D,A,E + 「ディレクトリ構成や開発ルール、インフラとか基盤部分は先に行い、その後はユースケースごとに開発していく」
+- Q5=B(MVP+Phase2概略) / Q6=B(エッジケース独立) / Q7=B(MoSCoW+サイズ) / Q8=B(個別NFRまで)
+**AI Response**:
+- Step 9 ANALYZE ANSWERS を実施
+- 曖昧点 2 件を特定:
+  - Q2 「1 Story = 1 受入条件」表現は AI 側の質問文不正確 → Cl-S2 で再確認
+  - Q4 複数選択 + コメントから方針抽出 → Cl-S1 で構成方針を提示・承認依頼
+- story-generation-plan.md に各回答を反映
+- セクション 6: Decided Approach(Foundation Epic + MVP Use Case Epics + Phase 2 概略、Story 数 60〜100、Story フォーマット詳細)を追加
+- セクション 7: Cl-S1 / Cl-S2 のフォローアップ質問を追加
+- ユーザーの回答待ち (GATE)
+**Context**: INCEPTION - User Stories Step 9〜10 (Analyze Answers / Mandatory Follow-up Questions)
+
+---
