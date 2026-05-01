@@ -1,0 +1,58 @@
+name: Commit Message Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  commitlint:
+    name: Commit Message Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit message format
+        run: |
+          PATTERN='^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert|add|update|remove)(\([^)]+\))?: .+'
+          FAILED=0
+
+          while IFS= read -r msg; do
+            [ -z "$msg" ] && continue
+            if echo "$msg" | grep -qE "$PATTERN"; then
+              echo "OK: $msg"
+            else
+              echo "NG: $msg"
+              FAILED=1
+            fi
+          done < <(git log --format="%s" "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}")
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "コミットメッセージは以下の形式に従ってください:"
+            echo "  <type>: <日本語メッセージ>"
+            echo "  <type>(<scope>): <日本語メッセージ>"
+            echo ""
+            echo "使用可能な type:"
+            echo "  feat     : 新機能"
+            echo "  fix      : バグ修正"
+            echo "  docs     : ドキュメント変更"
+            echo "  style    : コードスタイル変更（動作に影響なし）"
+            echo "  refactor : リファクタリング"
+            echo "  test     : テスト追加・修正"
+            echo "  chore    : ビルドプロセス・補助ツールの変更"
+            echo "  build    : ビルドシステムの変更"
+            echo "  ci       : CI設定の変更"
+            echo "  perf     : パフォーマンス改善"
+            echo "  revert   : コミットの取り消し"
+            echo "  add      : ファイル・設定の追加"
+            echo "  update   : 既存機能の更新"
+            echo "  remove   : ファイル・機能の削除"
+            echo ""
+            echo "例:"
+            echo "  feat: ログイン機能を追加"
+            echo "  fix(auth): トークン期限切れのバグを修正"
+            echo "  docs: READMEを更新"
+            exit 1
+          fi
