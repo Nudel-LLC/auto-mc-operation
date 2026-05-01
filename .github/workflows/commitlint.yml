@@ -14,20 +14,19 @@ jobs:
           fetch-depth: 0
 
       - name: コミットメッセージの形式を確認
-        env:
-          BASE_REF: ${{ github.base_ref }}
         run: |
           PATTERN='^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert|add|update|remove)(\([^)]+\))?: .+'
           FAILED=0
 
           while IFS= read -r msg; do
+            [ -z "$msg" ] && continue
             if echo "$msg" | grep -qE "$PATTERN"; then
               echo "OK: $msg"
             else
               echo "NG: $msg"
               FAILED=1
             fi
-          done < <(git log --format="%s" "origin/${BASE_REF}..HEAD")
+          done < <(git log --format="%s" "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}")
 
           if [ "$FAILED" -ne 0 ]; then
             echo ""
