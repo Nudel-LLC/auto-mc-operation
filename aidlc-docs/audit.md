@@ -269,3 +269,29 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 21 (Iteration on Generated Stories)
 
 ---
+
+## User Stories — Foundation Epic Feedback (PR #3 Review Comments)
+**Timestamp**: 2026-05-01T10:22:03Z
+**User Input**: PR #3 のレビューコメントとして 15 件の指摘
+- F-01: DDD セットアップ + AI 階層依存ガード / GitHub Actions の取り扱い
+- F-02: 3 環境の役割と権限明記 / 無料 vs 有料プラン明確化 / テーブル定義の場所
+- F-03: OAuth URL ドメイン要件 / 暗号鍵管理を先に決めるべき / ボタンのみで設定
+- F-04: 環境別 Bot 取得 / エンドポイント設計の場所 / HMAC-SHA256 説明 / メッセージ打たせず ボタンで完結
+- F-05: 二段分類(ルールベース→Haiku)/ キーローテーション
+- F-06: 監査ログで操作者追跡
+- F-08: i18n 専門用語の説明 / AI がルールを守る AC 追加
+**AI Response**:
+- F-01 を DDD レイヤ分離 + 依存方向の機械的ガード + GitHub Actions CI/CD に拡張(AC を 3→6 個)
+- F-02 を 3 環境の役割表 + Cloudflare 課金プラン明確化(Workers Paid $5/月必須) + テーブル定義は Application Design に委譲する旨明記
+- F-03 を OAuth URL ドメイン位置づけ明記 + ボタンタップのみで完結 + 暗号鍵管理は F-09 に委譲
+- F-04 を staging/production 環境別 Bot + Webhook 全体設計は Application Design に委譲 + HMAC-SHA256 平易説明 + ボタンのみ操作
+- F-05 にキーローテーション(2 本構成・無停止移行)+ 二段分類への対応インタフェース
+- F-06 に操作者追跡(actor / action_source)を必須化
+- F-08 に AI 遵守強制 AC + i18n 用語を「メッセージ定数化」に書き換え
+- 新規 F-09: 暗号鍵・シークレット管理基盤を追加(F-03/04/05 の前提として)
+- U1-02 を「ルールベース → Haiku」二段分類に書き換え + ルールの自動拡張 + コスト記録
+- 統計を更新(Foundation 8→9 Story、合計 55→56 Story)
+- ユーザーの追加修正 or 承認待ち
+**Context**: INCEPTION - User Stories Step 21 (Multi-issue Iteration on Foundation Epic)
+
+---
