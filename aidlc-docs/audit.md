@@ -120,3 +120,24 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Requirements Analysis Step 6.1 (Contradiction & Ambiguity Detection → Clarification File)
 
 ---
+
+## Requirements Analysis — Clarification Answers (PR #3 Review Comments, Round 2)
+**Timestamp**: 2026-05-01T05:40:40Z
+**User Input**: PR #3 のレビューコメントとして Cl-1〜Cl-7 への回答を投稿
+- Cl-1: A(Q19 を A のみに変更し UI なし維持)
+- Cl-2: D(A + B + C + D + F の完全パイプライン)
+- Cl-3: X(Java も選択肢に加えてほしい。Rust の SDK 実態を確認したい。SDK が無いなら REST 直叩き?)
+- Cl-4: A(D1 + KV + R2 → Cloud SQL Postgres)
+- Cl-5: C(大規模 SaaS / 5,000ユーザー × 20件/日 = 100,000件/日)
+- Cl-6: B(ハイブリッド保存 — 原文30日/構造化24ヶ月/PR文学習データ永続/監査ログ12ヶ月)
+- Cl-7: B(G 締切日時のみ追加)
+**AI Response**:
+- 質問ファイルに全 Cl 回答を記録
+- Cl-3 の追加質問に対して別エージェントで Java/Rust SDK 状況を調査
+- Java は Cloudflare Workers ネイティブ非対応(JVM 不可)、Cloud Run なら可
+- Rust は Anthropic/Google/LINE の公式 SDK 無し、REST 直叩きが現実的(`reqwest` + `serde`、OAuth2 は `yup-oauth2`)
+- `Cl-3-followup` セクションを追加し A〜D の選択肢(TS / Rust / Java + Cloud Run / 段階的)を提示
+- ユーザーの回答待ち (GATE)
+**Context**: INCEPTION - Requirements Analysis Step 6.1 → Cl-3 follow-up
+
+---
