@@ -4,7 +4,7 @@
 - **Project Name**: MC・コンパニオン エントリー業務自動化システム (auto-mc-operation)
 - **Project Type**: Greenfield
 - **Start Date**: 2026-05-01T00:00:00Z
-- **Current Stage**: INCEPTION - Application Design(プラン作成完了 = ユーザー回答待ち)
+- **Current Stage**: INCEPTION - Application Design 完了(成果物 5 件、ユーザー承認待ち)
 
 ## Workspace State
 - **Existing Code**: No
@@ -44,7 +44,7 @@
 - [x] Requirements Analysis (ALWAYS) — 2026-05-01 ユーザー承認取得
 - [x] User Stories (CONDITIONAL) — 2026-05-02 ユーザー承認取得(58 Story)
 - [x] Workflow Planning (ALWAYS) — 2026-05-02 ユーザー承認取得
-- [ ] Application Design (CONDITIONAL) — **EXECUTE** プラン作成完了、ユーザー回答待ち
+- [x] Application Design (CONDITIONAL) — 成果物 5 件作成完了、ユーザー承認待ち
 - [ ] Units Generation (CONDITIONAL) — **EXECUTE**(7 ユニットに分解予定)
 
 ### CONSTRUCTION PHASE

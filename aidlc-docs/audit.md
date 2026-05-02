@@ -413,3 +413,23 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design Step 1〜7 (Plan Created, Awaiting Answers)
 
 ---
+
+## Application Design — Q1〜Q8 回答取得 + 成果物 5 件生成
+**Timestamp**: 2026-05-02T09:00:00Z
+**User Input**: PR #3 のレビューコメントとして 8 件
+- Q1: B + ユニットに合わせて柔軟、過細化避ける / Q2: A / Q3: C
+- Q4: C / Q5: B / Q6: B / Q7: A / Q8: A
+**AI Response**:
+- 8 回答すべて明確、フォローアップ不要
+- application-design-plan.md に回答を記録
+- `aidlc-docs/inception/application-design/` 配下に 5 ドキュメントを生成:
+  - components.md(DDD 5 レイヤ・51 コンポーネント、Q1=B 中粒度方針)
+  - component-methods.md(主要トレイト・ユースケース・Adapter のシグネチャ、Q3=C エラー型統合)
+  - services.md(Q2=A ステップ別 7 Queue + Q7=A saga 補償パターン)
+  - component-dependency.md(C4 Component 図、依存マトリクス、Queue ペイロード仕様)
+  - application-design.md(統合ドキュメント: C4 Context/Container 図、Q5=B D1 スキーマ全列+IDX、Q4=C 完全 API 仕様、Q3=C エラー型階層、F-11 拡張性、Q8=A モック境界)
+- ユーザー承認待ち (GATE)
+**Approval Prompt Logged**: 「Application Design 5 成果物で進めて良いか?」
+**Context**: INCEPTION - Application Design Step 10〜13 (Generate Artifacts, Awaiting Approval)
+
+---
