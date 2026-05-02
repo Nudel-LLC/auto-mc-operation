@@ -330,3 +330,24 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 21 (Round 5: Use Cases 1-3 deep review)
 
 ---
+
+## User Stories — Cloudflare シークレット管理ベストプラクティス調査と F-09 / F-05 修正
+**Timestamp**: 2026-05-02T07:00:00Z
+**User Input**: 「シークレット管理方法のCloudflare ベストプラクティスについて、調べた結果について教えてください」 → 調査結果共有後「短時間のダウンタイムは許されるシステムのため、全シークレットについて1本の方針で構いません」
+**AI Response**:
+- general-purpose エージェントで Cloudflare Workers のシークレット管理ベストプラクティス(2026年5月時点)を調査
+- 調査結果から、過去主張の以下の誤りを訂正:
+  - **GitHub OIDC 連携は Cloudflare 公式未対応**(私の誤り) → 長期 API トークン + `wrangler-action` が現状の正解
+  - **Wrangler Secrets 制限**: 64 個 / 5 KiB
+  - **Secrets Store**: 2026年5月時点 Open Beta、Workers / AI Gateway のみ対応
+  - **`console.log` のマスキング機能なし** → アプリ側 wrapper 実装必須
+- F-09 を修正:
+  - AC-1: 1 本構成に統一(全シークレット `_PRIMARY` / `_SECONDARY` 廃止)
+  - AC-2: OIDC 記述を削除し、長期 API トークン + 90 日手動ローテに修正、Wrangler Secrets 制限と Secrets Store Beta 状況を Note 追記
+  - AC-3: Web Crypto API AES-256-GCM(96-bit IV、`additional_data` に `key_id`)を明示
+  - AC-4: 短時間ダウンタイム許容のローテ手順、自前生成鍵のみ `key_id` で世代識別
+  - AC-5: `console.log` 非マスキングと logger wrapper 実装の必要性を Note 明示
+- F-05 AC-4 を修正: 2 本構成 → 1 本構成 + 数分ダウンタイム許容のローテ手順
+**Context**: INCEPTION - User Stories Step 21 (F-09 / F-05 Cloudflare ベストプラクティス反映)
+
+---

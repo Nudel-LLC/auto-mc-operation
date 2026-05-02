@@ -248,14 +248,16 @@
   - **Given** 5xx またはレート制限(429)
   - **When** 最初の呼び出しが失敗する
   - **Then** 指数バックオフで最大 3 回リトライする
-- **AC-4 (API キー管理 + ローテーション可能設計)**:
+- **AC-4 (API キー管理 — 1 本構成 + 短時間ダウンタイム許容)**:
   - **Given** Anthropic API キー
   - **When** Workers から呼び出す
-  - **Then** キーは Wrangler secrets(F-09 と連携)から取得され、ログ出力では自動マスクされる(SECURITY-03 / SECURITY-09)
-  - **Then** **キーローテーション戦略**:
-    1. 環境変数を `ANTHROPIC_API_KEY_PRIMARY` と `ANTHROPIC_API_KEY_SECONDARY` の **2 本** 構成にする
-    2. ローテーション時は: SECONDARY に新キーを設定 → デプロイ → SECONDARY を PRIMARY に昇格 → 旧 PRIMARY を SECONDARY 削除 → デプロイ
-    3. 上記により **無停止でローテーション** でき、緊急時(漏洩疑い)も SECONDARY を即無効化できる
+  - **Then** キーは Wrangler secrets `ANTHROPIC_API_KEY`(F-09 と連携)から取得され、ログ出力では自動マスクされる(SECURITY-03 / SECURITY-09)
+  - **Then** **ローテーション手順**(F-09 AC-4 と統一、数分のダウンタイムを許容):
+    1. Anthropic Console で新キー発行
+    2. `wrangler secret put ANTHROPIC_API_KEY --env production` で更新
+    3. `wrangler deploy --env production` でデプロイ反映
+    4. 動作確認後、Anthropic Console で旧キーを失効
+  - **Then** ローテーション中の数分は API 失敗が起きうるが、Queues のリトライ(AC-3)で自動回復する想定
 - **AC-5 (二段分類への対応 — ルールベース → Haiku)**:
   - **Given** メール分類は **ルールベース第 1 段 + Claude Haiku 第 2 段** のパイプライン(U1-02 で詳細化)
   - **When** 本クライアントレイヤを呼び出す
@@ -388,46 +390,53 @@
 **Type**: Enabler Story
 
 **Acceptance Criteria**:
-- **AC-1 (シークレット分類 — すべて 2 本構成 / key-id 付き)**:
+- **AC-1 (シークレット分類 — 1 本構成 / 短時間ダウンタイム許容)**:
   - **Given** サービスが扱うシークレットを以下に分類する
   - **When** 設計レビュー
-  - **Then** `docs/secrets-management.md` に以下が明記される(**全シークレットを `_PRIMARY` / `_SECONDARY` の 2 本構成**にし、表記の整合を取る):
-    | 種類 | 保管場所(変数名) | アクセス経路 | ローテーション頻度 |
-    |------|-----------------|-------------|-------------------|
-    | Anthropic API キー | Wrangler secrets(`ANTHROPIC_API_KEY_PRIMARY` / `ANTHROPIC_API_KEY_SECONDARY`) | env binding | 90 日 / 漏洩疑い時即時 |
-    | LINE Channel access token | Wrangler secrets(`LINE_TOKEN_PRIMARY` / `LINE_TOKEN_SECONDARY`、環境別) | env binding | 90 日 |
-    | LINE Channel secret(Webhook 署名検証用) | Wrangler secrets(`LINE_CHANNEL_SECRET_PRIMARY` / `LINE_CHANNEL_SECRET_SECONDARY`) | env binding | LINE 側ローテに追従 |
-    | Google OAuth Client Secret | Wrangler secrets(`GOOGLE_CLIENT_SECRET_PRIMARY` / `GOOGLE_CLIENT_SECRET_SECONDARY`) | env binding | 180 日 / Google Cloud で発行 |
-    | OAuth リフレッシュトークン暗号化鍵 | Wrangler secrets(`TOKEN_ENC_KEY_PRIMARY` / `TOKEN_ENC_KEY_SECONDARY`、各鍵に **`key-id`** を付与) | env binding | 180 日 |
+  - **Then** `docs/secrets-management.md` に以下が明記される(**全シークレットは 1 本構成**。本サービスは短時間のダウンタイムを許容する方針のため、ローテーション時の数分の停止を受容する):
+    | 種類 | 保管場所(変数名) | アクセス経路 | ローテーション頻度 | 備考 |
+    |------|-----------------|-------------|-------------------|------|
+    | Anthropic API キー | Wrangler secrets(`ANTHROPIC_API_KEY`) | env binding | 90 日 / 漏洩疑い時即時 | 自前生成可・無効化即時 |
+    | LINE Channel access token | Wrangler secrets(`LINE_CHANNEL_ACCESS_TOKEN`、環境別) | env binding | 90 日 | LINE Console で 1 値のみ管理 |
+    | LINE Channel secret(Webhook 署名検証用) | Wrangler secrets(`LINE_CHANNEL_SECRET`) | env binding | LINE 側ローテに追従 | LINE Console で 1 値のみ管理 |
+    | Google OAuth Client Secret | Wrangler secrets(`GOOGLE_CLIENT_SECRET`) | env binding | 180 日 / Google Cloud で発行 | Google Cloud で 1 値のみ管理 |
+    | OAuth リフレッシュトークン暗号化鍵 | Wrangler secrets(`TOKEN_ENC_KEY`、`key_id` 付与) | env binding | 180 日 | 既存暗号化済みレコードへの後方互換のため `key_id` で世代識別 |
+  - **Note (Wrangler Secrets の制限)**: Worker あたり **最大 64 個**、1 値 **5 KiB まで**。本サービスのシークレット数は 5 種 × 環境別を考慮しても余裕がある
 - **AC-2 (Cloudflare ベストプラクティスへの準拠)**:
-  - **Given** Cloudflare 公式が提供するシークレット交換のベストプラクティス
+  - **Given** Cloudflare 公式のシークレット管理ベストプラクティス(2026年5月時点)
   - **When** 設計を行う
   - **Then** 以下を採用する:
     - **Wrangler Secrets** を主要保管場所とする(平文で `.env` / リポジトリに置かない)
-    - **環境変数として binding** し、コード内では `env.ANTHROPIC_API_KEY_PRIMARY` 等で参照(直接ハードコード禁止)
-    - シークレット更新は **`wrangler secret put` コマンド経由のみ**(GitHub Actions の OIDC 連携で CI からも更新可)
-    - **Secret Store**(Cloudflare の集中管理機能)が将来 GA したら移行を検討(MVP 段階では Wrangler Secrets で十分)
+    - **環境変数として binding** し、コード内では `env.ANTHROPIC_API_KEY` 等で参照(ハードコード禁止)
+    - シークレット更新は **`wrangler secret put` コマンド経由のみ**
+    - **CI からの更新**: Cloudflare 公式の **GitHub OIDC 連携は 2026年5月時点で未対応**。現状の正解は **長期 API トークン(最小権限 `Workers Scripts: Edit`)を GitHub Secrets に格納し、`wrangler-action` で更新**する方式。API トークン自体も 90 日ごとに手動ローテーション
+  - **Note (Secrets Store の将来移行)**: Cloudflare の **Secrets Store** は 2026年5月時点で **Open Beta**(GA 未達)。アカウント横断で複数 Worker に bind 可・**再デプロイ不要でローテーション可** の利点があるため、**GA 後に移行を検討**。ただし Workers / AI Gateway のみ対応で、Pages / R2 / D1 等からの直接参照は不可
 - **AC-3 (リフレッシュトークン暗号化)**:
   - **Given** D1 に保管する OAuth リフレッシュトークン
   - **When** 永続化する
-  - **Then** **AES-256-GCM** で暗号化され、暗号鍵は `TOKEN_ENC_KEY_PRIMARY`(Wrangler secrets)から取得する
-  - **Then** ノンスはレコードごとにランダム生成し、`{key_id}:{nonce}:{ciphertext}:{tag}` 形式で保存(`key_id` でどの世代の鍵かを識別、ローテーション時の復号トライに使用)
-- **AC-4 (鍵ローテーション戦略 — 全シークレット共通)**:
-  - **Given** すべてのシークレットに `_PRIMARY` / `_SECONDARY` の 2 本構成
+  - **Then** **Web Crypto API の AES-256-GCM** で暗号化、暗号鍵は `TOKEN_ENC_KEY`(Wrangler secrets)から取得
+  - **Then** ノンス(96-bit IV)はレコードごとにランダム生成、`additional_data` に `key_id` を含めて改ざん検知に使う
+  - **Then** 保存形式: `{key_id}:{nonce}:{ciphertext+tag}`(`key_id` で旧鍵世代を識別 → ローテーション時に旧鍵での復号フォールバックを許容)
+- **AC-4 (ローテーション手順 — 短時間ダウンタイム許容)**:
+  - **Given** あるシークレットを更新したい(漏洩疑い・定期更新)
   - **When** ローテーションを実施する
-  - **Then** 以下の手順で **無停止移行**:
-    1. `_SECONDARY` に新キーを設定 → デプロイ
-    2. 暗号化用途の鍵は `key_id` 付きでレコードに新世代を記録、復号は両鍵を試行
-    3. 全アクティブセッションが新鍵で動くのを確認後、`_SECONDARY` を `_PRIMARY` に昇格 → 旧鍵を `_SECONDARY` から削除
-    4. 暗号化済みレコードはバックグラウンドで新鍵に再暗号化(マイグレーション Job)
-- **AC-4 (シークレットの非ログ化)**:
-  - **Given** ロガー / エラーレポート
+  - **Then** 以下の手順で更新する(数分のダウンタイムを許容):
+    - **発行元側で値を交換できるシークレット**(Anthropic / Google OAuth / LINE 等): 発行元で新値を発行 → `wrangler secret put` で Cloudflare 側を更新 → `wrangler deploy` → 旧値の発行元側無効化
+    - **自前生成の暗号化鍵**(`TOKEN_ENC_KEY`): 新鍵を生成 → 新 `key_id` を割り当て → Wrangler secrets を新鍵に更新 → 既存レコードは **旧鍵での復号を許容**(`key_id` で識別)、新規書き込みは新鍵で暗号化 → バックグラウンドで再暗号化マイグレーション → 全レコードが新 `key_id` になったら旧鍵を退役
+  - **Note**: ローテーションの実行手順・所要時間・通知タイミングを `docs/operations.md` に明文化
+- **AC-5 (シークレットの非ログ化 — `console.log` も含む)**:
+  - **Given** ロガー / エラーレポート / `console.log`
   - **When** シークレットを含む値が誤って渡される
-  - **Then** F-06 のマスキング機構によりログには `***` で出力される(SECURITY-03)
-- **AC-5 (アクセス権限の最小化)**:
+  - **Then** F-06 のマスキング機構と組み合わせて、シークレットを含み得るフィールドは自動的に `***` で出力される(SECURITY-03)
+  - **Note**: **Cloudflare Workers の `console.log` 自体にはマスキング機能がない**(Logpush のヘッダ自動 REDACT は対象が限定的、Body は対象外)。アプリ側で **logger wrapper を実装**(F-06 で詳細化)し、シークレット型を `Debug` トレイトで `[REDACTED]` 表示にする等の言語レベルの保護を併用する
+- **AC-6 (アクセス権限の最小化)**:
   - **Given** Cloudflare API トークン
   - **When** CI / 開発者が利用する
-  - **Then** 環境別・操作別に分離(staging deploy 用、production deploy 用、read-only 監視用 等)、本番デプロイは main ブランチからのみ可能(SECURITY-06)
+  - **Then** 以下に分離する(SECURITY-06):
+    - 環境別:staging deploy 用 / production deploy 用 を別トークン化
+    - 操作別:Edit 権限と read-only 監視用を別トークン化
+    - 本番デプロイは main ブランチからのみ可能(branch protection)
+    - 各トークンは **最小権限**(本サービスは `Workers Scripts: Edit` + 必要なら `D1: Edit` / `KV: Edit` / `R2: Edit` のみ)
 
 **Traceability**:
 - Implements: NFR-4 SECURITY-01 / SECURITY-03 / SECURITY-06 / SECURITY-09, F-03(リフレッシュトークン)/ F-05(Anthropic キー)/ F-04(LINE secret)
