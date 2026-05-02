@@ -295,3 +295,38 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 21 (Multi-issue Iteration on Foundation Epic)
 
 ---
+
+## User Stories — Use Case 1〜3 までのレビュー反映 (PR #3 Review Comments, Round 5)
+**Timestamp**: 2026-05-02T06:33:23Z
+**User Input**: PR #3 のレビューコメントとして 27 件の指摘(Use Case 3 まで)
+- 全体方針: システム構成図 / 拡張性方針 / docs 集約
+- F-02: dev → local 改名 / βテスター production 配置 / Queues/KV/R2/Cron/DO の用途明示 / ドメイン取得 Story 追加要請
+- F-03: write 権限明示 / OAuth 画面のドメイン
+- F-08: i18n 用語使用 OK
+- F-09: ローテーション戦略の表との整合性 / Cloudflare ベストプラクティス
+- U1-01: Pub/Sub 自動セットアップの明記
+- U1-02: ルールベースのデータ外部化 + AND/OR 条件 + scope 分離
+- U1-EC-01: DLQ 復旧フロー
+- U1-EC-02: αテスト段階での必要性
+- U2: schedules 構成 / プロンプト設計 / 失敗フロー / 欠落関連
+- U3: 「自分」の主語 / 複数仮案件 / プライベート予定の権限最小化
+**AI Response**:
+- 構成方針セクションに 拡張性 / docs 集約 / システム構成図方針を追記
+- F-02 に AC-2.5(リソース用途) / 環境名 dev → local / βテスター production を反映
+- F-03 AC-2 を read+write 権限ごとに明示
+- F-08 AC-1 Note の i18n を「使用 OK」に修正
+- F-09 AC-1 を全シークレット 2 本構成 + AC-2(Cloudflare ベストプラクティス) + AC-4 統一手順
+- 新規 Story 追加: F-10(ドメイン取得)/ F-11(抽象化レイヤ)/ F-12(システム構成図)/ U2-00(プロンプト設計)/ U2-EC-04(共通失敗ハンドリング)
+- U1-01 AC-4 に GCP Pub/Sub の自動セットアップ + 運営者初期セットアップを明記
+- U1-02 AC-1 をルールデータ外部化(KV/D1)+ AND/OR/閾値 + AC-1.5(global / user スコープ)
+- U1-EC-01 AC-3 で DLQ 復旧フロー + docs/operations.md 言及
+- U1-EC-02 を SHOULD に格下げ + α/β フェーズ別の必要性 Note
+- U2-02 AC-1 で schedules 配列の各要素構成(slot_id, tz, raw_text, confidence)を明示
+- U2-EC-03 AC-3 で U4-02 への連携を明示
+- U3-01 AC-1 で「自分」の主語明確化 + AC-2 で freeBusy.query 優先(プライベート予定本文非取得)+ AC-3 で複数仮案件パターン明記
+- U3-04 を SHOULD → MUST 格上げ + プライベート予定の権限最小化 4 AC
+- 統計を更新(Foundation 9→12、Use Case 2 7→8、合計 56→60 Story)
+- ユーザーの追加修正 or 承認待ち
+**Context**: INCEPTION - User Stories Step 21 (Round 5: Use Cases 1-3 deep review)
+
+---
