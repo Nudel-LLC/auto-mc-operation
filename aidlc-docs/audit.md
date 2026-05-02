@@ -351,3 +351,21 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories Step 21 (F-09 / F-05 Cloudflare ベストプラクティス反映)
 
 ---
+
+## User Stories — 全体レビュー反映 (PR #3 Round 6: テスト/監視/CSV/辞退学習)
+**Timestamp**: 2026-05-02T07:46:12Z
+**User Input**: PR #3 のレビューコメントとして 4 件
+- 辞退メールは過去送信メールを参考にしないか?(U7-02)
+- これもボタンにしたいですね(U8-01 CSV エクスポート)
+- MVP 段階では不要にしませんでしたっけ?(U8 = F8 CSV 全体)
+- テスト設計、E2Eテスト作成、監視設計、監視設定などはどのスコープですか?(全体)
+**AI Response**:
+- U7-02 に過去辞退メール Few-shot 学習 + 事務所別の言い回し学習 + decline_corpus 自動収集 AC を追加
+- U8 全体(U8-01〜U8-EC-01 の 5 Story)を Phase 2 へ移動 — Cl-2 D の MVP スコープ "A+B+C+D+F" に F8 が含まれていなかった整合のため
+- Phase 2 Epic に P2-08(請求 CSV エクスポート、ボタンのみ UX で再設計予定)を追加
+- Foundation Epic に F-13(テスト戦略・E2E)/ F-14(監視・アラート設計)を新規追加
+- 構成方針セクションにテスト・監視のスコープを明記(枠組みは User Stories、詳細は後続ステージ)
+- 統計を更新(Foundation 12→14、U2 8→9、U8 5→0、Phase 2 7→8、合計 60→58)
+**Context**: INCEPTION - User Stories Step 21 (Round 6: 全体最適化)
+
+---
