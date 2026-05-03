@@ -197,6 +197,22 @@ pub trait NotifyUserUseCase {
     async fn notify(&self, user_id: &UserId, event: NotificationEvent) -> Result<(), DomainError>;
     async fn handle_postback(&self, payload: PostbackPayload) -> Result<(), DomainError>;
 }
+
+// A-10 — Cron 起動、Queue 不使用(同期処理)
+pub struct RotateGmailWatchCommand {
+    pub cron_run_id: Uuid,
+    pub user_filter: WatchTargetFilter,    // All | ExpiringWithin(Duration) | Single(UserId)
+}
+pub trait RotateGmailWatchUseCase {
+    /// 期限が近い(または切れた) Gmail Watch を `users.watch` で再登録する。
+    /// 戻り値: 成功延長したユーザー数 / 再認可が必要になったユーザー一覧。
+    async fn execute(&self, cmd: RotateGmailWatchCommand) -> Result<RotateGmailWatchOutcome, DomainError>;
+}
+pub struct RotateGmailWatchOutcome {
+    pub renewed_user_ids: Vec<UserId>,
+    pub reauth_required_user_ids: Vec<UserId>, // OAuth 失効等で延長失敗、A-9 で「もう一度 Google と連携」通知
+    pub failed: Vec<(UserId, DomainError)>,
+}
 ```
 
 ---

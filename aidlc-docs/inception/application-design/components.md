@@ -1,6 +1,6 @@
 # Components — auto-mc-operation
 
-DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) に従い、**約 25 コンポーネント** を 5 レイヤに配置。
+DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) に従い、**約 51 コンポーネント** を 5 レイヤに配置(Repository トレイトファミリー D-14 を 1 行に集約しているため、実質抽象は約 30)。
 
 ## 1. ドメイン層(`crates/domain`)— 外部依存ゼロ
 
@@ -107,7 +107,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | **S-1** | `Logger` / `MetricsRecorder` | F-06: 構造化ログ(`request_id`, `actor`, `action_source`)+ メトリクス(F-14)+ シークレット redact |
 | **S-2** | `MessageCatalog` | F-08: ユーザー向け文言定数(`messages/ja.rs`)+ 専門用語禁止 lint 用辞書 |
 | **S-3** | `ErrorClassifier` | `DomainError` から U2-EC-04 4 カテゴリへの分類 + 復旧ガイダンス生成 |
-| **S-4** | `TestSupport`(test feature) | Q8=A: F-15(D-15〜D-18)ポートのモック実装、フィクスチャローダー |
+| **S-4** | `TestSupport`(test feature) | Q8=A: F-13(D-15〜D-18)ポートのモック実装、フィクスチャローダー |
 
 ---
 

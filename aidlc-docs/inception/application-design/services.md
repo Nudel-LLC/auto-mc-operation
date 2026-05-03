@@ -19,13 +19,14 @@
 ```mermaid
 sequenceDiagram
     participant Gmail
-    participant PubSub as Cloud Pub/Sub
+    participant PubSub as GCP Pub/Sub
     participant W as Workers
     participant Q1 as classify_queue
     participant Q2 as extract_queue
     participant Q3 as availability_queue
     participant Q4 as draft_queue
     participant Q5 as notify_queue
+    participant Qcal as calendar_queue
     participant LINE
     participant U as User
 
@@ -34,7 +35,7 @@ sequenceDiagram
     W->>Q1: A-2 IngestMailUseCase → enqueue
     Q1->>W: Consumer
     W->>Q2: A-3 ClassifyMailUseCase(recruitment) → enqueue
-    W->>Q5: A-3 ClassifyMailUseCase(decision) → enqueue (確定通知側)
+    Note over W: 決定通知の場合は Q5 + Qcal の両方に enqueue<br/>(C1 修正: 通知パスとカレンダー更新パスを並行)
     Q2->>W: Consumer
     W->>Q3: A-4 ExtractCaseUseCase → enqueue
     Q3->>W: Consumer
@@ -55,20 +56,26 @@ sequenceDiagram
 sequenceDiagram
     participant W as Workers
     participant Q5 as notify_queue
+    participant Qcal as calendar_queue
     participant Q6 as decline_queue
     participant U as User
     participant LINE
 
-    Note over W: A-3 で decision 分類確定
-    W->>W: A-7 ManageCalendarUseCase(PromoteAndCleanup)
+    Note over W: A-3 で decision 分類確定<br/>(C1 修正: 同期呼び出しは廃止し、Queue 経由に統一)
+    W->>Qcal: A-7 起動メッセージを enqueue (PromoteAndCleanup)
+    W->>Q5: 決定通知を enqueue (case_id, slot_id)
+    Qcal->>W: Consumer A-7 ManageCalendarUseCase 実行
     W->>Q6: A-8 DetectAndDeclineConflictsUseCase → enqueue
+    Q5->>W: Consumer A-9 NotifyUser → 確定 LINE 通知
     Q6->>W: Consumer
+    W->>Q5: 辞退候補通知を enqueue
+    Q5->>W: Consumer
     W->>LINE: 辞退候補リスト + 承認ボタン
     LINE->>U: Flex Message
     U->>LINE: 「送信」承認
     LINE->>W: POST /webhook/line(Postback)
     W->>W: A-8 send_approved_declines() → MailRepository::send_draft
-    W->>W: A-7 ManageCalendarUseCase(DeleteAllByCase per declined)
+    W->>Qcal: A-7 起動メッセージを enqueue (DeleteAllByCase per declined)
 ```
 
 ## 3. Queue 構成(Q2=A: ステップ別)
@@ -79,9 +86,15 @@ sequenceDiagram
 | `extract_queue` | A-3(label=recruitment) | A-4 ExtractCase | `extract_dlq` |
 | `availability_queue` | A-4 | A-5 CheckAvailability | `availability_dlq` |
 | `draft_queue` | A-5(verdict=Available) | A-6 ComposeEntryDraft | `draft_dlq` |
-| `notify_queue` | A-3(label=decision)/A-5/A-6/A-8 | A-9 NotifyUser | `notify_dlq` |
-| `calendar_queue` | A-9 Postback / A-3 decision | A-7 ManageCalendar | `calendar_dlq` |
-| `decline_queue` | A-7 PromoteAndCleanup | A-8 DetectAndDecline | `decline_dlq` |
+| `notify_queue` | A-3(label=decision) / A-5 / A-6 / A-7(完了通知) / A-8 | A-9 NotifyUser | `notify_dlq` |
+| `calendar_queue` | A-3(label=decision)/ A-9 Postback / A-8 (辞退送信完了後) | A-7 ManageCalendar | `calendar_dlq` |
+| `decline_queue` | A-7 PromoteAndCleanup 完了後 | A-8 DetectAndDecline | `decline_dlq` |
+
+**A-3(label=decision)受信時の方針**(C1 修正で統一):
+- A-3 の Consumer は **`notify_queue` と `calendar_queue` の両方に enqueue** する(同期呼び出しは廃止)
+  - `notify_queue` → A-9 NotifyUser でユーザーに「🎉 決定」LINE 通知
+  - `calendar_queue` → A-7 ManageCalendar(PromoteAndCleanup)でカレンダー [仮]→[確定]更新 + 他候補削除
+- 両者は独立した Queue なので **片方失敗・他方成功** が起こりうる。Saga 補償(セクション 4)で扱う
 
 各 DLQ は F-14 で監視・運用者通知対象。
 
@@ -116,6 +129,38 @@ Q7=A により基本は **すべて非同期 + Queue 経由**。例外として 
 | A-6 | A-9 | 非同期(`notify_queue`) | 通知失敗時の独立リトライ |
 | A-9(Postback) | A-7 | **同期**(直接呼ばず内部関数) | ユーザー承認直後の即時反映 |
 | A-7 | A-8 | 非同期(`decline_queue`) | 辞退検出は時間がかかるため切り離す |
+| A-3(decision)| A-7 | 非同期(`calendar_queue`) | C1 修正: 同期呼び出しを廃止し Queue 経由に統一 |
+| A-3(decision)| A-9 | 非同期(`notify_queue`) | カレンダー更新と通知を並行実行 |
+| Cron | A-10 | 同期(関数呼び出し) | A-10 RotateGmailWatch、Queue 不使用 |
+
+## 5.1 Cron 起動シーケンス(A-10 RotateGmailWatch)
+
+A-10 は Queue を使わない同期処理。Cron Triggers から直接起動する。
+
+```mermaid
+sequenceDiagram
+    participant Cron as Cloudflare Cron
+    participant W as Workers (P-6 CronWorker)
+    participant DB as D1 (users)
+    participant Gmail
+    participant LINE
+
+    Cron->>W: scheduled handler(毎時)
+    W->>DB: A-10 user_filter=ExpiringWithin(24h) で対象抽出
+    DB-->>W: users[]
+    loop 各 user
+        W->>Gmail: MailRepository::watch(user_id, topic)
+        alt 成功
+            Gmail-->>W: 新 watch_expiry
+            W->>DB: oauth_tokens / users 更新
+        else OAuth 失効など Recoverable
+            W->>LINE: A-9 NotifyUser「もう一度 Google と連携」ボタン
+        else 一時障害
+            W->>W: 次回 Cron でリトライ(自動)
+        end
+    end
+    W->>DB: 監査ログ記録(renewed / reauth_required / failed)
+```
 
 ## 6. 共通サービス(横断的関心事)
 

@@ -89,7 +89,8 @@ flowchart TB
 | A-6 ComposeDraft | ✓ | ✓ | ✓ |   |   | ✓ |   | ✓ |   | ✓ | ✓ |   |   | ✓ |   |
 | A-7 ManageCal | ✓ | ✓ | ✓ |   |   |   |   |   |   | ✓ |   | ✓ |   |   |   |
 | A-8 DetectDecline | ✓ | ✓ | ✓ | ✓ |   |   | ✓ |   |   | ✓ | ✓ |   |   | ✓ |   |
-| A-9 NotifyUser | ✓ |   |   |   |   |   |   |   |   | ✓ |   |   | ✓ |   |   |
+| A-9 NotifyUser | ✓ | ✓ |   |   |   |   |   |   |   | ✓ |   |   | ✓ |   |   |
+| A-10 RotateGmailWatch | ✓ |   |   |   |   |   |   |   |   | ✓ | ✓ |   |   |   |   |
 
 ## 3. 通信パターン
 
@@ -116,6 +117,10 @@ pub struct QueueEnvelope<T> {
     pub user_id: UserId,
     pub timestamp: DateTime<Utc>,
     pub idempotency_key: String,
+    /// アプリ独自カウンタ。Cloudflare Queues が提供する `message.attempts` は
+    /// 「この Queue でのみの試行回数」のため、ステップ別 Queue を連鎖したときの
+    /// 通算試行回数を保持するためにペイロード側でも管理する。
+    /// 同 Queue 内での試行カウントは `message.attempts` を優先利用する。
     pub retry_count: u32,
     pub payload: T,
 }

@@ -17,6 +17,9 @@
 
 ## 1. C4 モデル
 
+**P2 ペルソナ(AI 未経験者)配慮の設計反映**:
+すべてのユーザー向け文言(エラー / 認可失敗 / フォールバック動線)は **`shared::MessageCatalog`(S-2)** に集約する。エラー時には「次に何のボタンをタップすればよいか」を MessageCatalog から具体ガイドとして取得し、LINE Flex Message に埋め込む(`personas.md` P2 の「専門用語ゼロ・具体ガイド必須」要件への準拠、F-08 メッセージング規約の延長)。
+
 ### 1.1 Context Diagram(システム全体と外部関係)
 
 ```mermaid
@@ -166,11 +169,13 @@ CREATE TABLE users (
 );
 CREATE UNIQUE INDEX idx_users_line ON users(line_user_id);
 
--- 0001 oauth_tokens(F-09 暗号化、key_id 付き)
+-- 0001 oauth_tokens(F-09 暗号化、key_id は独立カラムで管理)
+-- W6 修正: BLOB 内に key_id プレフィックスを含めず、独立カラム key_id を信頼の単一情報源とする
+--           (検索効率と冗長排除のため (a) 案を採用)
 CREATE TABLE oauth_tokens (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    encrypted_refresh_token BLOB NOT NULL,   -- {key_id}:{nonce}:{ct+tag}
-    key_id TEXT NOT NULL,                    -- 復号フォールバック用
+    encrypted_refresh_token BLOB NOT NULL,   -- {nonce}:{ct+tag}(key_id は別カラム)
+    key_id TEXT NOT NULL,                    -- 復号鍵世代の識別子(F-09 ローテーション対応)
     scope TEXT NOT NULL,                     -- "gmail.modify gmail.send calendar.events"
     expires_at TEXT,
     last_refreshed_at TEXT,
@@ -179,6 +184,7 @@ CREATE TABLE oauth_tokens (
 );
 
 -- 0001 consents(同意履歴、改竄防止のため append-only)
+-- W7 修正: SQLite には append-only 制約がないため、UPDATE/DELETE をトリガーで拒否
 CREATE TABLE consents (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
@@ -189,6 +195,12 @@ CREATE TABLE consents (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_consents_user ON consents(user_id, agreed_at);
+
+-- append-only を機械的に保証するトリガー(NFR-4 SECURITY-11 監査要件)
+CREATE TRIGGER trg_consents_no_update BEFORE UPDATE ON consents
+BEGIN SELECT RAISE(ABORT, 'consents is append-only'); END;
+CREATE TRIGGER trg_consents_no_delete BEFORE DELETE ON consents
+BEGIN SELECT RAISE(ABORT, 'consents is append-only'); END;
 
 -- 0002 messages(取込メールメタ、本文は R2)
 CREATE TABLE messages (
@@ -246,7 +258,7 @@ CREATE TABLE cases (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     source_message_id TEXT NOT NULL REFERENCES messages(id),
-    office_id TEXT,                          -- office_patterns.id, NULL 可
+    office_id TEXT REFERENCES office_patterns(id) ON DELETE SET NULL,  -- W8 修正: 明示的 FK
     office_name TEXT NOT NULL,
     subject_name TEXT NOT NULL,
     location TEXT,
@@ -373,6 +385,7 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 ### 4.1 URL 体系・バージョニング
 
 - ベース URL: `https://api.<base-domain>`(production)/ `https://staging.<base-domain>`(staging)
+- `<base-domain>` の実値は **F-10(ドメイン取得・DNS 設定)で確定** する(本ドキュメント時点ではプレースホルダ)
 - バージョニングは **URL プレフィックス**: `/v1/` を全エンドポイントに付与(MVP は v1 のみ、breaking change 時に `/v2/`)
 - Webhook は `/webhook/...`(バージョンなし、外部サービスの仕様に追従)
 
@@ -380,8 +393,8 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 
 | エンドポイント種別 | 認証方式 | 詳細 |
 |------------------|---------|------|
-| **公開 Webhook** | 署名検証 | LINE: `X-Line-Signature`(HMAC-SHA256) / Pub/Sub: JWT(Google が署名)/ OAuth Callback: `state` パラメータ + CSRF トークン |
-| **管理 API** | Bearer トークン | `Authorization: Bearer <token>`、トークンは Wrangler secrets で管理、IP 許可リスト併用 |
+| **公開 Webhook** | 署名検証 | LINE: `X-Line-Signature`(HMAC-SHA256) / GCP Pub/Sub: JWT(Google が署名)/ OAuth Callback: `state` パラメータ(CSRF 対策 + 開始リクエスト紐付け、有効期間付き、サーバー側 KV で照合) |
+| **管理 API** | Bearer トークン | `Authorization: Bearer <token>`、トークンは Wrangler secrets で管理、IP 許可リスト併用、**`user_id` パラメータの権限チェック必須**(運用者ミスによる他ユーザーデータ操作を防止 / SECURITY-08 BOLA 防止) |
 | **ユーザー API** | (Phase 2) JWT | LIFF + JWT、IDOR 防止のため `user_id` をトークンクレームから取得し、リソース所有確認(SECURITY-08) |
 
 ### 4.3 レート制限
@@ -393,6 +406,12 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 | 管理 API | 60 req/min/token | KV カウンタ |
 | ユーザー API(Phase 2) | 30 req/min/user | Durable Object でユーザー毎カウンタ |
 | 外部 API への発信(Anthropic / Google / LINE) | 各サービスのクォータ準拠 | Queues + 指数バックオフ |
+
+**LLM 呼び出し設計目標(NFR-7「月額 500 円/ユーザー」達成のため)**:
+- **目標上限: ≤ 4 回 / 案件**(分類 1 + 抽出 1 + PR 文生成 0〜1 + 辞退文生成 0〜1)
+- 1 ユーザー × 月 600 案件相当(20 件/日 × 30 日)を想定すると、**最大 2400 回 / ユーザー / 月**
+- ルールベース分類のヒット率を上げて分類 1 回を削減、プロンプトキャッシュで入力トークン削減、Few-shot 例の精選で出力トークン削減
+- 詳細なトークン単価試算と閾値は **Functional Design ステージ(per-unit, Construction)** で確定
 
 ### 4.4 エンドポイント一覧
 
@@ -487,6 +506,29 @@ pub enum UserAction {
 | テスト・監視のスコープ(F-13/F-14) | 本ドキュメントは枠組みまで、詳細は Functional Design / Build and Test |
 
 ---
+
+## 7.1 レビュー反映履歴(PR #3 issue #4365084235 / 2026-05-03)
+
+レビュー結果を以下のように反映:
+
+| 項目 | 対応 |
+|------|------|
+| **C1**: A-3(decision)流れ先 3 説 | `services.md` で `notify_queue` + `calendar_queue` の **両 enqueue 方針** に統一、シーケンス図と Queue 構成表を一致 |
+| **C2**: 存在しない F-15 参照 | `components.md` の F-15 → F-13 に修正 |
+| **C3**: A-10 RotateGmailWatch 設計片手落ち | `component-methods.md` にシグネチャ追加、`component-dependency.md` 依存マトリクスに行追加、`services.md` に Cron 起動シーケンス追加 |
+| **W4**: コンポーネント数表記不一致 | `components.md` L3 を「約 51(実質抽象 30)」に修正、`application-design.md` と統一 |
+| **W5**: A-9 NotifyUser CaseRepo 依存漏れ | 依存マトリクスに ✓ 追加(case_id を渡され Flex Message 用にサマリ取得する設計) |
+| **W6**: oauth_tokens key_id 二重保存 | BLOB プレフィックスから `key_id` を除去、独立カラムを単一情報源に |
+| **W7**: consents append-only 機械的保証なし | UPDATE/DELETE を拒否する SQLite トリガーを追加 |
+| **W8**: cases.office_id FK 未宣言 | `REFERENCES office_patterns(id) ON DELETE SET NULL` を明示 |
+| **S9**: state パラメータ説明 | 「`state`(CSRF 対策 + 開始紐付け、有効期間付き、KV 照合)」に整理 |
+| **S10**: QueueEnvelope.retry_count 意図 | 「ステップ別 Queue 連鎖時の通算試行回数」用と注記 |
+| **S11**: ベース URL F-10 参照 | `<base-domain>` の実値が F-10 で確定する旨を明記 |
+| **S12**: Cloud Pub/Sub / GCP Pub/Sub 表記揺れ | 「GCP Pub/Sub」に統一 |
+| **S13**: 管理 API BOLA 防止 | 4.2 認証表に `user_id` パラメータ権限チェック必須を明記 |
+| **S14**: LLM 呼び出し回数上限 | 4.3 レート制限節に「≤ 4 回 / 案件、最大 2400 回 / ユーザー / 月」を設計目標として記載 |
+| 上流ドキュメント(`requirements.md`)陳腐化 | F8 を Phase 2 へ移行注記、4.2 MVP 含めないものに追記、トレーサビリティ表 Q20 / FR-8 にも反映 |
+| P2 ペルソナ反映 | セクション 1.0 に「ユーザー向け文言は `MessageCatalog`(S-2)集約、エラー時に具体ガイド埋め込み」を追記 |
 
 ## 8. 完了基準
 

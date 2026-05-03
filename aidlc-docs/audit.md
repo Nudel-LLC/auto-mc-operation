@@ -433,3 +433,24 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design Step 10〜13 (Generate Artifacts, Awaiting Approval)
 
 ---
+
+## Application Design — レビュー結果反映 (PR #3 issue 4365084235)
+**Timestamp**: 2026-05-03T01:30:00Z
+**User Input**: 詳細レビュー(Critical 3 / Warning 5 / Suggestion 6 / プロダクトオーナー指摘 2)。「レビュールール改善」セクションは別件として除外。
+**AI Response**:
+- C1: services.md A-3(decision)の流れを `notify_queue` + `calendar_queue` 両 enqueue に統一(同期呼び出し廃止)
+- C2: components.md L110 F-15 → F-13 修正
+- C3: A-10 RotateGmailWatch を 5 ファイル横断で完成(メソッド / 依存マトリクス / Cron 起動シーケンス)
+- W4: components.md L3「約 51(実質抽象 30)」に統一
+- W5: A-9 NotifyUser に CaseRepo 依存追加(case_id 取得 → Flex Message 用サマリ取得)
+- W6: oauth_tokens BLOB から key_id プレフィックス除去、独立カラム単一情報源化
+- W7: consents UPDATE/DELETE 拒否トリガー追加
+- W8: cases.office_id FK 制約追加(REFERENCES office_patterns ON DELETE SET NULL)
+- S9: state パラメータ説明整理 / S10: retry_count 意図注記 / S11: F-10 参照 / S12: GCP Pub/Sub 統一
+- S13: 管理 API BOLA 防止(`user_id` 権限チェック必須)/ S14: LLM 呼び出し設計目標(≤4回/案件)
+- 上流: requirements.md F8 を Phase 2 移行注記(4.1, 4.2, FR-8, Q20 トレーサ全箇所)
+- P2 ペルソナ: 1.0 に MessageCatalog 集約方針追記
+- 7.1 レビュー反映履歴節を application-design.md に追加
+**Context**: INCEPTION - Application Design (Review Round 1 反映完了、再承認待ち)
+
+---
