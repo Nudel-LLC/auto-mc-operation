@@ -248,6 +248,48 @@ pub struct RotateGmailWatchOutcome {
     pub reauth_required_user_ids: Vec<UserId>, // OAuth 失効等で延長失敗、A-9 で「もう一度 Google と連携」通知
     pub failed: Vec<(UserId, DomainError)>,
 }
+
+// A-11 — アカウント削除 saga(7 ステップ + Step 0、`data-model.md §17`)
+pub struct DeleteUserCommand {
+    pub user_id: UserId,
+    pub requested_at: DateTime<Utc>,
+    pub reason: DeletionReason,           // UserRequested | InactivityCleanup | OperatorForced
+    pub confirmation_token: Option<String>, // P2 LIFF 経由の二要素確認トークン(Phase 2: P2-02 連動)
+}
+pub trait DeleteUserUseCase {
+    /// アカウント削除を saga として実行(冪等)。
+    /// Step 0: `users.deletion_started_at` SET(再登録ブロック・新規 enqueue 防止)
+    /// Step 1: OAuth refresh token revoke(`OAuthPort::revoke`)
+    /// Step 2: Gmail Watch 停止(`MailPort::stop_watch`)
+    /// Step 3: Calendar 仮予定削除(`CalPort::delete_event` × N)
+    /// Step 4: in-flight 案件 / 下書き / 辞退 を `terminated` に切替、Queue メッセージは ack 時にスキップ判定
+    /// Step 5: R2 本文・添付削除(I-7 R2Storage)
+    /// Step 6: D1 物理削除 / `consents` は append-only ゆえ user_id を NULL 化(法令履歴は保持)
+    /// Step 7: LINE 最終通知(削除完了)→ NotifPort
+    /// 各ステップは独立に補償可能。中断時は `users.deletion_started_at` が残り、Cron で再開できる。
+    async fn execute(&self, cmd: DeleteUserCommand) -> Result<DeleteUserOutcome, DomainError>;
+}
+pub struct DeleteUserOutcome {
+    pub user_id: UserId,
+    pub completed_steps: Vec<DeletionStep>, // Step0..=Step7 の完了履歴
+    pub partial_failures: Vec<(DeletionStep, DomainError)>, // 個別 step の Recoverable / DataIssue 失敗(全体は継続)
+    pub deleted_at: DateTime<Utc>,
+}
+pub enum DeletionStep {
+    MarkDeletionStarted,    // Step 0
+    RevokeOAuth,            // Step 1
+    StopGmailWatch,         // Step 2
+    DeleteCalendarEvents,   // Step 3
+    TerminateInFlight,      // Step 4
+    DeleteR2Objects,        // Step 5
+    PurgeOrAnonymizeD1,     // Step 6
+    NotifyDeletionComplete, // Step 7
+}
+pub enum DeletionReason {
+    UserRequested,
+    InactivityCleanup,
+    OperatorForced,
+}
 ```
 
 ---

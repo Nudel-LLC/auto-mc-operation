@@ -29,6 +29,7 @@ flowchart TB
         A8[DetectDecline]
         A9[NotifyUser]
         A10[RotateGmailWatch]
+        A11[DeleteUser]
     end
 
     subgraph DOM["🟨 domain (Entity / VO / Service / Port / Error)"]
@@ -96,8 +97,11 @@ flowchart TB
 | A-8 DetectDecline | ✓ | ✓ | ✓ | ✓ |   |   | ✓ |   |   |   | ✓ | ✓ |   |   | ✓ |   |   |
 | A-9 NotifyUser | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   |   | ✓ |   |   |   |
 | A-10 RotateGmailWatch | ✓ |   |   |   |   |   |   |   |   |   | ✓ | ✓ |   |   |   |   |   |
+| A-11 DeleteUser | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |
 
-**注**: A-2 IngestMail は処理開始時に最新同意確認のため `ConsentRepo` に依存(F-07 連携)。新規ポート `OAuthPort` は S2 で追加(下記)。
+**注**:
+- A-2 IngestMail は処理開始時に最新同意確認のため `ConsentRepo` に依存(F-07 連携)。新規ポート `OAuthPort` は S2 で追加(下記)
+- **A-11 DeleteUser**(saga 7 ステップ、`data-model.md §17`):Step 0 で `users.deletion_started_at` を SET(UserRepo)、Step 1 OAuth revoke(OAuthPort + UserRepo)、Step 2 Watch 停止(MailPort)、Step 3 仮予定削除(CalPort + CaseRepo)、Step 4 in-flight 打ち切り(CaseRepo / EntryRepo / DeclineRepo / MessageRepo)、Step 5 R2 本文削除(infrastructure I-7 を直接)、Step 6 D1 物理削除・匿名化(全リポジトリ + EntryCorpus / DeclineCorpus / ConsentRepo は user_id NULL 化)、Step 7 LINE 最終通知(NotifPort)。全ステップで AuditLog に記録。`OfficePat` / `ClassRule` / `LlmPort` / `Crypto` は不要(削除フローでは生成系を呼ばない)
 
 ## 3. 通信パターン
 

@@ -10,7 +10,7 @@
 
 ## 0. 設計原則(Plan セクション 3 の回答に準拠)
 
-- **Q1 = B**: コンポーネント粒度は中粒度、ユニットに合わせて柔軟調整、過細化避ける(全 52、実質抽象 31)
+- **Q1 = B**: コンポーネント粒度は中粒度、ユニットに合わせて柔軟調整、過細化避ける(全 54、実質抽象 32)
 - **Q2 = A**: 非同期通信は **ステップ別 Queue**(7 Queue + DLQ)
 - **Q3 = C**: エラー型は **U2-EC-04 共通失敗ハンドリング 4 カテゴリ**(`Transient` / `Recoverable` / `DataIssue` / `Permanent`)を最上位、ドメイン別をネスト
 - **Q4 = C**: API エンドポイントは **完全仕様**(URL + メソッド + 認証ヘッダ + レート制限 + バージョニング)
@@ -277,8 +277,8 @@ P-5 は単一 Worker 関数だが、`batch.queue` の値(Queue 名)で対応す�
 
 | レイヤ | crate | 主要コンポーネント数 | 役割 |
 |--------|-------|---------------------|------|
-| domain | `crates/domain` | 20(D-1〜D-19 + D-18.5 OAuthExchanger) | 純粋なビジネスロジック・トレイト・エラー型(外部依存ゼロ) |
-| application | `crates/application` | 10(ユースケース) | オーケストレーション、saga、補償 |
+| domain | `crates/domain` | 21(D-1〜D-19 + D-18.5 OAuthExchanger + D-6.5 Office) | 純粋なビジネスロジック・トレイト・エラー型(外部依存ゼロ) |
+| application | `crates/application` | 11(ユースケース、A-11 DeleteUserUseCase 含む) | オーケストレーション、saga、補償 |
 | infrastructure | `crates/infrastructure` | 11 | 外部 API / DB / Queue / 暗号 アダプタ |
 | presentation | `crates/presentation` | 7 | Workers ハンドラ |
 | shared | `crates/shared` | 4 | ロガー / メッセージ / エラー分類 / テスト支援 |
@@ -766,7 +766,7 @@ pub enum UserAction {
 | ID | 重要度 | 対応 |
 |----|--------|------|
 | **N1** | 🟡 Warning | `application-design.md` §6 のドメインポート列挙に `OAuthExchanger` を追記、D-15〜D-18.5 表記統一を完全化(W3 の 5 箇所目を解消) |
-| **N2** | 🟢 Suggestion | §7.5 の「13 TBD」→「**15 TBD**」に修正(N5 で 1 行追加したため最終 15)+ 末尾 1 行は §4.6.1 索引と注記 |
+| **N2** | 🟢 Suggestion | §7.5 の「13 TBD」→「**16 TBD**」に修正(N5 で 1 行 + コーパス取り込み期間 1 行追加で最終 16)+ 末尾 1 行は §4.6.1 索引と注記 |
 | **N3** | 🟢 Suggestion | `components.md` §6 ドメイン行を `20(D-1〜D-19 + D-18.5 OAuthExchanger)` に統一 |
 | **N4** | 🟢 Suggestion | `id-index.md` D-NN 行を `D-1〜D-19 + D-18.5` に統一 |
 | **N5** | 💡 Note | §9 TBD 表に **運用アラート閾値**(Worker 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト)を追加(確定先 = Unit-7、影響 NFR = SECURITY-14 / NFR-7 / NFR-8) |
@@ -792,7 +792,7 @@ pub enum UserAction {
 | **🟡 数値整合性 30 vs 31 内部矛盾** | `components.md` L128 を 31 に修正、application-design.md と統一 |
 | **🟡 STRIDE 委譲の対応表不足** | `application-design.md` §4.6.1 にユニット別 threat-model.md 提出マイルストーン表を新設 |
 | **🟡 D-18.5 OAuthExchanger モック未追加** | components.md S-4 / component-methods.md §5 に `MockOAuthExchanger` を明記 |
-| **🟡 TBD 一覧化(構築可能性視点)** | `application-design.md` §9「Functional Design への引き継ぎ事項」を新設、**15 TBD** を確定先ユニット・マイルストーン付きで一覧化(うち末尾 1 行は §4.6.1 STRIDE マイルストーン表への索引、運用アラート閾値を Phase 3 レビューで追加) |
+| **🟡 TBD 一覧化(構築可能性視点)** | `application-design.md` §9「Functional Design への引き継ぎ事項」を新設、**16 TBD** を確定先ユニット・マイルストーン付きで一覧化(うち末尾 1 行は §4.6.1 STRIDE マイルストーン表への索引、運用アラート閾値とコーパス取り込み期間は後続レビューで追加) |
 
 ## 7.4 システム構成図の粒度向上(2026-05-04)
 
@@ -863,7 +863,7 @@ pub enum UserAction {
 
 本 Application Design ステージで以下が確定:
 
-- ✅ 5 レイヤ・約 53 コンポーネントの責務とインターフェース
+- ✅ 5 レイヤ・**全 54 コンポーネント**(D-1〜D-19 + D-18.5 + D-6.5 / A-1〜A-11 / I-1〜I-11 / P-1〜P-7 / S-1〜S-4)の責務とインターフェース
 - ✅ 11 ユースケースのコマンド型・Result 型
 - ✅ 7 ステップ別 Queue + DLQ + saga 補償パターン
 - ✅ **15 D1 テーブル**(うち append-only 1: `consents`)のスキーマ + 主要インデックス + マイグレーション順序
@@ -886,7 +886,7 @@ pub enum UserAction {
 | Few-shot 採用件数(`entry_corpus` / `decline_corpus`) | Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト)/ 出力品質 | 3〜5 件(暫定) |
 | コーパス取り込み期間(`entry_corpus` / `decline_corpus` の Sent フォルダ走査窓) | Unit-1: 基盤 / Unit-5 | Unit-1 Functional Design 完了時 | D1 容量 / オンボーディング時間 / 文体新鮮さ | 直近 24 ヶ月(暫定、長期 MC のレコード爆発防止) |
 | `users.travel_buffer_minutes` のユーザー設定可能範囲 | Unit-4: カレンダー連携 | Unit-4 Functional Design 完了時 | UX | デフォルト 60 分、範囲は TBD(0〜180?) |
-| LLM 呼び出しタイムアウト | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-1 | 25 秒(暫定、`AbortSignal.timeout`) |
+| LLM 呼び出しタイムアウトの **再キャリブレーション**(NFR-1 暫定値 25 秒に対する実測補正) | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-1 | NFR-1 で 25 秒として宣言済(`AbortSignal.timeout`)、ユニット別実測で短縮余地あれば調整 |
 | Queue リトライ回数 | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-3 | 3 回 + 指数バックオフ(暫定) |
 | Cron 頻度(Watch 更新) | Unit-2 | Unit-2 Infrastructure Design 完了時 | NFR-3 | 毎時(暫定) |
 | Cron 頻度(R2 mail-cleanup / audit-archive-monthly / D1 prune-extracted) | Unit-7: 監視・運用 | Unit-7 Infrastructure Design 完了時 | NFR-5(保管) | 日次(R2 mail)/ 月次(audit R2 アーカイブ)/ 月次(extracted)(暫定) |

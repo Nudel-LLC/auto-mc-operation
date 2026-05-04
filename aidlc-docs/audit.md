@@ -745,3 +745,20 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (再登録不都合の対策 + Phase 2 スコープ縮小)
 
 ---
+
+## INCEPTION - Application Design (AI レビュー Round 7 反映)
+**Timestamp**: 2026-05-04T00:00:00Z
+**User Input**: "AIレビューの結果を受けて、妥当なものは修正や改善などしてください。PRの分割だけはしないでよいです。https://github.com/Nudel-LLC/auto-mc-operation/pull/3#issuecomment-4374421937"
+**AI Response**: PR #3 #issuecomment-4374421937 (AI design-mode review Round 7 / SHA 8e230f6) の指摘 11 件のうち、PR 分割推奨(W0)を除く 10 件を反映。
+  - **C1+C3+C4**: コンポーネント数を `application-design.md` §0 / §2 / §8、`components.md` L5 / §6、`id-index.md` §1 で 全 54 / Domain 21(D-1〜D-19 + D-18.5 + D-6.5)/ 実質抽象 32 に統一
+  - **C2+W4**: A-11 DeleteUserUseCase を `component-dependency.md` §1 Mermaid + §2 マトリクス、`component-methods.md` §2 シグネチャ(`DeleteUserCommand` / `DeleteUserUseCase` trait / `DeleteUserOutcome` / `DeletionStep` enum / `DeletionReason` enum)に追加
+  - **C5**: `application-design.md` §7.5 / §7.6 の「15 TBD」を「16 TBD」に訂正(運用アラート閾値 + コーパス取り込み期間で計 16)
+  - **W1**: `stories.md` Phase 2 統計行を「8」→「12 (P2-02〜P2-12 概略 / P2-01 取り下げ)」、総計行に Phase 2 含む 70 を追加
+  - **W2**: `id-index.md` §3.1 に U8-01〜U8-EC-01 行と A-11 DeleteUserUseCase 行を追加、Phase 2 範囲を P2-02〜P2-12 に更新
+  - **W3**: `stories.md` トレース表に F-10〜F-14 の 5 行を追加(NFR への紐付け含む)
+  - **S1**: `application-design.md` §9 LLM タイムアウト行を「再キャリブレーション」表記に変更し NFR-1 確定値との重複を解消
+  - **H2**: `aidlc-state.md` Current Stage / User Stories Story 数を 70 に更新
+  - **H1**: PR description body の数値も同期更新(後続でMCPツール経由)
+**Context**: INCEPTION - Application Design (Round 7 AI review reflection、PR 分割は除外)
+
+---

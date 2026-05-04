@@ -17,7 +17,7 @@
 | **UN-NN** | U1-01, U2-EC-04 等 | **MVP Use Case Story** | `inception/user-stories/stories.md` MVP Use Case Epic セクション(Use Case 1〜7) | components.md A-N の `責務` 列で言及、services.md オーケストレーション節 |
 | **P2-NN** | P2-02〜P2-12(P2-01 は取り下げ済) | **Phase 2 Story 概略** | `inception/user-stories/stories.md` Phase 2 Epic セクション | requirements.md §4.2、application-design.md §17、data-model.md(§17 アカウント削除 / §18 保管方針) |
 | **P1 / P2(ペルソナ)** | P1, P2 | **ユーザーペルソナ**(P1: AI 慣れ / P2: AI 未経験) | `inception/user-stories/personas.md` | stories.md 構成方針、application-design.md §1.0 |
-| **D-NN** | D-1〜D-19 + D-18.5 | **ドメイン層コンポーネント** | `inception/application-design/components.md` §1 ドメイン層 | component-methods.md(シグネチャ)、component-dependency.md(依存マトリクス) |
+| **D-NN** | D-1〜D-19 + D-18.5 + D-6.5 | **ドメイン層コンポーネント** | `inception/application-design/components.md` §1 ドメイン層 | component-methods.md(シグネチャ)、component-dependency.md(依存マトリクス) |
 | **A-N** | A-1〜A-11 | **アプリケーション層ユースケース** | `inception/application-design/components.md` §2 アプリケーション層 | services.md(オーケストレーション)、component-dependency.md、data-model.md |
 | **I-NN** | I-1〜I-11 | **インフラストラクチャ層コンポーネント** | `inception/application-design/components.md` §3 インフラ層 | component-methods.md、services.md |
 | **P-N** | P-1〜P-7 | **プレゼンテーション層ハンドラ** | `inception/application-design/components.md` §4 プレゼンテーション層 | application-design.md §4.4 API エンドポイント、component-dependency.md |
@@ -51,8 +51,10 @@
 | U5-01〜U5-EC-01 | A-9 NotifyUser(LINE 通知 + Postback) |
 | U6-01〜U6-EC-01 | A-7 ManageCalendar |
 | U7-01〜U7-EC-01 | A-8 DetectAndDeclineConflicts |
+| U8-01〜U8-EC-01(Phase 2 移管、F8 関連) | (P2-08 で再設計、MVP 時点では未実装) |
 | (セットアップ) | A-1 OnboardUser(F-03 OAuth + F-07 同意) |
-| Phase 2 P2-01〜P2-08 | 個別 A-N は Phase 2 で再設計 |
+| (アカウント削除) | A-11 DeleteUserUseCase(saga 7 ステップ、`data-model.md §17`) |
+| Phase 2 P2-02〜P2-12 | 個別 A-N は Phase 2 で再設計(`stories.md` Phase 2 Epic 参照) |
 
 ### 3.2 FR → A-N → 主要テーブル のトレーサビリティ
 
