@@ -491,3 +491,21 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Review Round 2 完了、再承認待ち)
 
 ---
+
+## ID 体系の整理 — 横断インデックス id-index.md 新設
+**Timestamp**: 2026-05-04T08:30:00Z
+**User Input**: 「A- や F- について、突然出てくるとどのドキュメントにそのID付けの元があるのか、わかりませんでした。そこら辺が辿りやすいように全体的に整理してもらえますか?」
+**AI Response**:
+- `aidlc-docs/inception/id-index.md` を新規作成(横断 ID インデックス)
+  - §1: 全プレフィックス一覧表(FR, NFR, SECURITY, F, U, P2, P1/P2 ペルソナ, D, A, I, P, S, Q, Cl, C/W/S/N)
+    - 各プレフィックスの「正本(定義元)」と「主な参照先」を明示
+  - §2: 命名規則(2 桁ゼロ埋め、EC 中置語、N.5 挿入規則)
+  - §3: 主要マッピング表(User Story → A-N、FR → A-N → テーブル、F-NN → 設計箇所、ペルソナ → 配慮箇所)
+  - §4: ID の使い方ガイド(逆引き手順、設計変更時の影響範囲チェック)
+- 主要ドキュメント 7 ファイルの先頭に「📑 ID 参照」ヘッダを追加して id-index.md にリンク:
+  - requirements.md / stories.md / personas.md
+  - application-design.md / components.md / component-methods.md / services.md / component-dependency.md / data-model.md
+- application-design.md §7.3 「ID 体系の整理」セクションを新設し背景・改善内容を明記
+**Context**: INCEPTION - Application Design (ID Index Index 整備で横断トレーサビリティ向上)
+
+---

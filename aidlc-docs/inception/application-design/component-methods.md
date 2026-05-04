@@ -1,5 +1,7 @@
 # Component Methods — auto-mc-operation
 
+> **📑 ID 参照**: `D-NN` / `A-N` / `I-NN` の **正本は `components.md`**。本ドキュメントはそのメソッドシグネチャを記述する派生資料。横断 ID 一覧は `aidlc-docs/inception/id-index.md`。
+
 各コンポーネントのメソッドシグネチャ(Rust トレイト / 構造体)。**詳細業務ロジックは Functional Design(per-unit, Construction)で確定** する想定で、ここではインターフェース契約を定義する。
 
 エラー型は **`DomainError`**(Q3=C: 4 カテゴリの最上位 + ドメイン別ネスト)を統一使用。

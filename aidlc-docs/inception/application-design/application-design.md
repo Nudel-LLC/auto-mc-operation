@@ -2,6 +2,12 @@
 
 本ドキュメントは Application Design ステージの **主成果物**。`components.md` / `component-methods.md` / `services.md` / `component-dependency.md` の内容をまとめ、**データモデル(D1 スキーマ)** と **API エンドポイント設計** を加えた完全版。
 
+> **📑 ID 参照**: 本ドキュメントは複数 ID 体系を横断的に参照する。各 ID の正本(定義元)・主な参照先・命名規則は **`aidlc-docs/inception/id-index.md`** に集約。
+> - `FR-N` / `NFR-N` / `SECURITY-NN` の正本は `inception/requirements/requirements.md`
+> - `F-NN`(Foundation Story)/ `UN-NN`(Use Case Story)/ `P2-NN`(Phase 2)の正本は `inception/user-stories/stories.md`
+> - `D-NN` / `A-N` / `I-NN` / `P-N` / `S-N`(設計コンポーネント)の正本は **同じフォルダの `components.md`**
+> - `P1` / `P2`(ペルソナ)の正本は `inception/user-stories/personas.md`(プレゼンテーション層 `P-N` とは別物)
+
 ## 0. 設計原則(Plan セクション 3 の回答に準拠)
 
 - **Q1 = B**: コンポーネント粒度は中粒度、ユニットに合わせて柔軟調整、過細化避ける(全 52、実質抽象 31)
@@ -529,6 +535,16 @@ pub enum UserAction {
 | テスト・監視のスコープ(F-13/F-14) | 本ドキュメントは枠組みまで、詳細は Functional Design / Build and Test |
 
 ---
+
+## 7.3 ID 体系の整理(2026-05-04)
+
+レビューでの「A-N / F-NN が突然出てきても定義元が分からない」指摘を受け、横断 ID インデックス **`aidlc-docs/inception/id-index.md`** を新設。各文書冒頭に「📑 ID 参照」ヘッダを追加し、正本(定義元)が機械的に辿れるようにした。
+
+主な構成:
+- 全プレフィックス(FR, NFR, SECURITY, F, U, P2, P1/P2 ペルソナ, D, A, I, P, S, Q, Cl, C/W/S/N)を 1 表で網羅、正本ドキュメントと主な参照先を明示
+- 命名規則(2 桁ゼロ埋め推奨、EC 中置語、N.5 番号挿入)を明文化
+- クロスリファレンス表(Story → A-N、FR → A-N → テーブル、F-NN → 設計箇所、ペルソナ → 配慮箇所)
+- 設計変更時の影響範囲チェック手順
 
 ## 7.2 レビュー反映履歴(PR #3 issue #4368912387 / 2026-05-04 — AI レビュー /review design モード)
 

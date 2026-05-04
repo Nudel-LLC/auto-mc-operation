@@ -1,5 +1,7 @@
 # Data Model — auto-mc-operation
 
+> **📑 ID 参照**: 本ドキュメントは複数 ID を参照する。`A-N`(ユースケース)の **正本は `components.md` §2**、`F-NN`(Foundation Story)の正本は `inception/user-stories/stories.md`、`FR-N` / `NFR-N` は `inception/requirements/requirements.md`。横断 ID 一覧は `aidlc-docs/inception/id-index.md`。
+
 D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**目的・用途・どのユースケースが読み書きするか**を網羅。
 
 このドキュメントは `application-design.md` Section 3 のデータモデル節を **詳細展開した独立資料** であり、Functional Design / Code Generation ステージで参照する一次情報源。

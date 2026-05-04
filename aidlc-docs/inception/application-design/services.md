@@ -1,5 +1,7 @@
 # Services — auto-mc-operation
 
+> **📑 ID 参照**: `A-N`(ユースケース)の **正本は `components.md` §2**。本ドキュメントはそのオーケストレーション方法を記述する派生資料。横断 ID 一覧は `aidlc-docs/inception/id-index.md`。
+
 サービス層(`crates/application` のユースケース群)のオーケストレーションパターン。**Q2=A: ステップ別 Queue + Q7=A: eventually consistent / saga** に基づく。
 
 ## 1. サービス層の構成

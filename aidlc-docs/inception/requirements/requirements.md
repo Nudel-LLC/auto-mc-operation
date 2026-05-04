@@ -5,6 +5,8 @@
 **作成日**: 2026-05-01
 **ステータス**: ドラフト(Requirements Analysis 完了時に承認)
 
+> **📑 ID 参照**: 本ドキュメント内の `FR-N` / `NFR-N` は本ドキュメントが **正本**。`F-NN`(Foundation Story)/ `A-N`(Use Case)/ `D-NN` 等の参照については **`aidlc-docs/inception/id-index.md`** を参照のこと。
+
 ---
 
 ## 1. Intent Analysis サマリ

@@ -1,5 +1,7 @@
 # Component Dependency — auto-mc-operation
 
+> **📑 ID 参照**: `D-NN` / `A-N` / `I-NN` / `P-N` / `S-N` の **正本は `components.md`**、`F-NN` の正本は `inception/user-stories/stories.md`。横断 ID 一覧は `aidlc-docs/inception/id-index.md`。
+
 依存関係マトリクスと通信パターン。**DDD の依存方向(presentation → application → domain ← infrastructure、shared は最下層)** を機械的に守る(F-01 AC-2)。
 
 ## 1. レイヤ間の依存方向(C4 Component 図)

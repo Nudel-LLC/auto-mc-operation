@@ -1,5 +1,7 @@
 # Components — auto-mc-operation
 
+> **📑 ID の正本**: 本ドキュメントは **`D-NN` / `A-N` / `I-NN` / `P-N` / `S-N`** すべての **正本**(定義元)。横断的な ID マッピングは `aidlc-docs/inception/id-index.md` 参照。
+
 DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) に従い、**約 52 コンポーネント** を 5 レイヤに配置(Repository トレイトファミリー D-14 を 1 行に集約しているため、実質抽象は約 31)。
 
 ## 1. ドメイン層(`crates/domain`)— 外部依存ゼロ

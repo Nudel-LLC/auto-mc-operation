@@ -3,6 +3,8 @@
 このドキュメントは User Stories の本体です。
 `personas.md` の **プライマリペルソナ 2 名**(P1: AI に慣れた MC = 佐藤 美咲さん / P2: AI 未経験の MC = 中村 ゆかりさん)を主語として記述します。
 
+> **📑 ID 参照**: 本ドキュメントが `F-NN`(Foundation Story)/ `UN-NN`(Use Case Story)/ `P2-NN`(Phase 2)の **正本**。`A-N`(Use Case)/ `D-NN`(ドメイン)等の参照は **`aidlc-docs/inception/id-index.md`** を参照。
+
 ---
 
 ## 構成方針(Plan セクション 8 準拠 + P2 ペルソナ反映 + レビュー反映)
