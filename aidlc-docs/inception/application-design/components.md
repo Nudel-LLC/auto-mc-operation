@@ -10,11 +10,12 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | # | コンポーネント | 責務 |
 |---|--------------|------|
 | **D-1** | `User`(集約ルート) | ユーザーアカウント、OAuth トークン参照、同意状態、設定(移動時間バッファ等) |
-| **D-2** | `Case`(集約ルート) | 案件 1 件。所属事務所・案件名・PR要素要否・締切・複数 Schedule を集約 |
-| **D-3** | `Schedule`(`Case` 内 Entity) | 候補スロット 1 つ。`{slot_id, start_at, end_at, tz, raw_text, confidence, status}` |
-| **D-4** | `Entry`(集約ルート) | エントリー 1 件。`{case_id, slot_id, draft_id, status: pending|sent|confirmed|declined}` |
-| **D-5** | `Decline`(集約ルート) | 辞退送信 1 件。`{case_id, decline_draft, status, sent_at}` |
+| **D-2** | `Case`(集約ルート) | 案件 1 件。所属事務所(`office_id`)・案件名・PR要素要否・締切・複数 Schedule を集約 |
+| **D-3** | `Schedule`(`Case` 内 Entity) | 候補スロット 1 つ。`{slot_id, start_at, end_at, tz, raw_text, confidence, overlap_status, is_chosen}`。1 case で 0/1/N 個が `is_chosen=1` |
+| **D-4** | `Entry`(集約ルート) | エントリー 1 件。`{case_id, draft_id, status: pending|submitted|confirmed|declined|superseded}`。1 case = 1 active entry(履歴は `superseded`) |
+| **D-5** | `Decline`(集約ルート) | 辞退送信 1 件。`{case_id, triggered_by_kind: case|private_event|manual, triggered_by_case?, triggered_by_note?, decline_draft, status, sent_at}` |
 | **D-6** | `Message`(集約ルート) | 受信メール 1 件のメタ。`{message_id, history_id, classification, classified_by, needs_review}` |
+| **D-6.5** | `Office`(集約ルート) | 事務所マスタ。`{id, sender_domain, display_name, aliases, is_blocked}`。`OfficePattern` を 1:1 でサブエンティティとして保持 |
 
 ### Value Objects
 | # | コンポーネント | 責務 |
@@ -34,7 +35,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 ### Repository Traits(domain で定義、infrastructure で実装)
 | # | コンポーネント | 責務 |
 |---|--------------|------|
-| **D-14** | `UserRepository` / `CaseRepository` / `EntryRepository` / `DeclineRepository` / `MessageRepository` / `PrCorpusRepository` / `DeclineCorpusRepository` / `ConsentRepository` / `OfficePatternRepository` / `ClassificationRuleRepository` / `AuditLogRepository` | ドメインオブジェクトの永続化トレイト(D1 や KV の存在に依存しない) |
+| **D-14** | `UserRepository` / `CaseRepository` / `EntryRepository` / `DeclineRepository` / `MessageRepository` / `PrCorpusRepository` / `DeclineCorpusRepository` / `ConsentRepository` / `OfficeRepository` / `OfficePatternRepository` / `ClassificationRuleRepository` / `AuditLogRepository` | ドメインオブジェクトの永続化トレイト(D1 や KV の存在に依存しない) |
 
 ### External Service Ports(F-11 抽象化レイヤ)
 | # | コンポーネント | 責務 |

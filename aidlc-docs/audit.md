@@ -589,3 +589,21 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Phase 3 Re-review 反映完了)
 
 ---
+
+## Application Design — data-model.md 18 件レビュー対応 (PR #3 / 2026-05-04)
+**Timestamp**: 2026-05-04T17:00:00Z
+**User Input**:
+- L412 cases-entries カーディナリティ: 1 case 1 entry に修正、`entries.chosen_schedule_id` 削除、複数候補日 / 複数確定日は `schedules.is_chosen` で表現
+- L332 offices テーブル分離: 追加で OK
+- L284 declines.triggered_by 拡張: `triggered_by_kind` (case/private_event/manual) + nullable `triggered_by_case` で OK
+- L444 R2 アーカイブ: メール原文 30 日のみに限定、`audit_logs` / 構造化データの R2 アーカイブは MVP 対象外、D1 から完全削除
+- L133 / L157 / L175 / L182 / L202 / L209 / L213 / L262 / L263 / L264 / L308 / L330 / L345: ドキュメント追記で対応(SQLite 0/1 慣行、閾値変更時のスナップショット意味、永続累積カウンタ意図、user スコープルールの想定ユースケース、同 priority の `created_at ASC` 評価順、source_message_id は募集メール限定、UTC 保存方針、`cases.status` vs `entries.status` の使い分け、`pr_required` の更新メカニズム、PR/decline の粒度差理由 等)
+**AI Response**:
+- data-model.md: 14 → 15 テーブル(offices 新設)。office_patterns を offices への 1:1 サブ化。`cases.office_id` を offices(id) FK へ変更、`office_name` を `office_name_snapshot` にリネーム。`entries.chosen_schedule_id` 削除、`status` に `superseded` 追加。`declines` に `triggered_by_kind` / `triggered_by_note` 追加 + CHECK 制約。`pr_corpus` / `decline_corpus` の `office_name` を `office_id` FK へ変更。§17 R2 戦略を「メール原文のみ」に変更、`d1-prune-audit` / `d1-prune-extracted` Cron で D1 完全削除へ移行。§16 ER 図更新
+- application-design.md: §1.2 D1=15 テーブル、R2 表記を「メール原文 30 日のみ MVP」へ。§3.1 ER 図、§3.3 DDL(offices / office_patterns / cases / entries / declines / pr_corpus / decline_corpus)を更新。§8 完了基準を 15 テーブルへ。§9 TBD 表の Cron 頻度を 3 種別に分割
+- components.md: `D-6.5 Office` 集約ルートを追加、`D-14` に `OfficeRepository` を追加、`D-3` / `D-4` / `D-5` の責務記述を新スキーマに整合
+- component-dependency.md: §4 永続化マッピングを 15 テーブルに更新、Office / OfficePattern 行を分離
+- id-index.md: §3.2 FR-2 行に `offices` を追加
+**Context**: INCEPTION - Application Design (data-model.md 18 件 review 対応)
+
+---

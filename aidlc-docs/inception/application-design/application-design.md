@@ -99,9 +99,9 @@ flowchart TB
     end
 
     subgraph STORAGE["💾 ストレージ・状態管理(Cloudflare)"]
-        D1[(D1<br/>SQLite at edge<br/>14 テーブル)]
+        D1[(D1<br/>SQLite at edge<br/>15 テーブル)]
         KV[(KV<br/>冪等性キー /<br/>ルールキャッシュ)]
-        R2[(R2<br/>メール原文 30 日 /<br/>監査ログ 12 ヶ月)]
+        R2[(R2<br/>メール原文 30 日<br/>のみ MVP)]
         DO[Durable Objects<br/>per-user 状態保持<br/>hibernate 可能]
     end
 
@@ -290,7 +290,7 @@ P-5 は単一 Worker 関数だが、`batch.queue` の値(Queue 名)で対応す�
 
 ## 3. データモデル(D1 スキーマ)
 
-Q5 = B により全列 + 制約 + 主要 IDX + マイグレーション順序を明記。**全 14 テーブル**(うち append-only 1: `consents`)。
+Q5 = B により全列 + 制約 + 主要 IDX + マイグレーション順序を明記。**全 15 テーブル**(うち append-only 1: `consents`)。
 
 > **📘 詳細リファレンス**: 本セクションは ER 図と DDL のみを掲載。**各カラムの目的・用途・どのユースケースが読み書きするか・データ保存方針** の詳細は **`data-model.md`** を参照。新規参画者・実装者はまず `data-model.md` を読むことを推奨。
 
@@ -306,16 +306,17 @@ erDiagram
     users ||--|| oauth_tokens : "保有"
 
     cases ||--|{ schedules : "候補スロット"
-    cases ||--o{ entries : "エントリー"
+    cases ||--|| entries : "エントリー (1対1 active)"
     cases ||--o{ declines : "辞退"
     cases ||--o| calendar_events : "仮/確定登録"
 
-    schedules ||--o| entries : "確定スロット"
-
-    messages ||--o| cases : "抽出元"
+    messages ||--o| cases : "抽出元(募集メール)"
 
     classification_rules }o--|| users : "user スコープのみ"
-    office_patterns ||--o{ cases : "学習元書式"
+    offices ||--o| office_patterns : "1対1"
+    offices ||--o{ cases : "office_id"
+    offices ||--o{ pr_corpus : "office_id"
+    offices ||--o{ decline_corpus : "office_id"
 
     audit_logs }o--|| users : "操作主体"
 ```
@@ -407,13 +408,23 @@ CREATE TABLE messages (
 CREATE UNIQUE INDEX idx_messages_gmail ON messages(user_id, gmail_message_id);
 CREATE INDEX idx_messages_review ON messages(user_id, needs_review) WHERE needs_review = 1;
 
--- 0002 office_patterns
-CREATE TABLE office_patterns (
+-- 0002 offices(マスタ)
+CREATE TABLE offices (
     id TEXT PRIMARY KEY,
     sender_domain TEXT NOT NULL UNIQUE,
-    office_name TEXT,
+    display_name TEXT NOT NULL,
+    aliases_json TEXT,                       -- JSON 配列: 別表記
+    is_blocked INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX idx_offices_domain ON offices(sender_domain);
+
+-- 0002 office_patterns(offices への 1対1 サブ)
+CREATE TABLE office_patterns (
+    office_id TEXT PRIMARY KEY REFERENCES offices(id) ON DELETE CASCADE,
     pattern_data TEXT NOT NULL,              -- JSON: {sample_layouts, keywords, ...}
-    success_count INTEGER NOT NULL DEFAULT 0,
+    success_count INTEGER NOT NULL DEFAULT 0,  -- 永続累積
     last_seen_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -441,8 +452,8 @@ CREATE TABLE cases (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     source_message_id TEXT NOT NULL REFERENCES messages(id),
-    office_id TEXT REFERENCES office_patterns(id) ON DELETE SET NULL,  -- W8 修正: 明示的 FK
-    office_name TEXT NOT NULL,
+    office_id TEXT REFERENCES offices(id) ON DELETE SET NULL,
+    office_name_snapshot TEXT NOT NULL,      -- 抽出時の事務所名スナップショット
     subject_name TEXT NOT NULL,
     location TEXT,
     compensation_text TEXT,
@@ -451,12 +462,12 @@ CREATE TABLE cases (
     pr_required INTEGER NOT NULL DEFAULT 0,
     other_conditions TEXT,
     extraction_warnings_json TEXT,           -- 欠落項目リスト
-    status TEXT NOT NULL DEFAULT 'pending',  -- pending | entered | confirmed | declined
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending | entered | confirmed | declined | expired
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_cases_user_status ON cases(user_id, status, deadline_at);
-CREATE INDEX idx_cases_user_office ON cases(user_id, office_name);
+CREATE INDEX idx_cases_user_office ON cases(user_id, office_id);
 
 -- 0004 schedules
 CREATE TABLE schedules (
@@ -474,27 +485,30 @@ CREATE TABLE schedules (
 CREATE INDEX idx_schedules_case ON schedules(case_id);
 CREATE INDEX idx_schedules_time ON schedules(start_at, end_at);
 
--- 0005 entries
+-- 0005 entries (1 case = 1 active entry; 履歴は status='superseded' で append)
 CREATE TABLE entries (
     id TEXT PRIMARY KEY,
     case_id TEXT NOT NULL REFERENCES cases(id),
-    chosen_schedule_id TEXT REFERENCES schedules(id),
-    draft_id TEXT,                           -- Gmail draft id
+    draft_id TEXT,                           -- Gmail draft id (エントリーメール下書き)
     pr_used INTEGER NOT NULL DEFAULT 0,
     submitted_at TEXT,                       -- ユーザー送信時刻(ユーザー操作)
     confirmed_at TEXT,
-    status TEXT NOT NULL DEFAULT 'pending',  -- pending | submitted | confirmed | declined
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending | submitted | confirmed | declined | superseded
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_entries_case ON entries(case_id);
+CREATE INDEX idx_entries_case_active ON entries(case_id) WHERE status != 'superseded';
 CREATE INDEX idx_entries_status ON entries(status);
+-- 確定スロットは schedules.is_chosen = 1 を参照(複数確定対応)
 
 -- 0006 declines
 CREATE TABLE declines (
     id TEXT PRIMARY KEY,
     case_id TEXT NOT NULL REFERENCES cases(id),
-    triggered_by_case TEXT NOT NULL REFERENCES cases(id),  -- 決定案件
+    triggered_by_kind TEXT NOT NULL CHECK(triggered_by_kind IN ('case','private_event','manual')),
+    triggered_by_case TEXT REFERENCES cases(id),    -- kind='case' のときのみ NOT NULL
+    triggered_by_note TEXT,                          -- kind='private_event' / 'manual' の理由メモ
     decline_draft TEXT NOT NULL,             -- 生成された辞退本文
     sent_message_id TEXT,
     status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','approved','sent','failed')),
@@ -504,7 +518,11 @@ CREATE TABLE declines (
         -- failed: 送信失敗(再試行待ち or 手動対応待ち)
     sent_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (
+        (triggered_by_kind = 'case' AND triggered_by_case IS NOT NULL)
+        OR (triggered_by_kind != 'case' AND triggered_by_case IS NULL)
+    )
 );
 CREATE INDEX idx_declines_case ON declines(case_id);
 
@@ -528,23 +546,24 @@ CREATE TABLE pr_corpus (
     user_id TEXT NOT NULL REFERENCES users(id),
     source_message_id TEXT,
     body TEXT NOT NULL,
-    office_name TEXT,
-    case_kind TEXT,                          -- "MC" | "コンパニオン" 等の推定
+    office_id TEXT REFERENCES offices(id) ON DELETE SET NULL,
+    case_kind TEXT,                          -- "MC" | "コンパニオン" 等の推定 (PR 文体は案件種別に依存)
     char_length INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX idx_pr_user_office ON pr_corpus(user_id, office_name);
+CREATE INDEX idx_pr_user_office ON pr_corpus(user_id, office_id);
 
 CREATE TABLE decline_corpus (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     source_message_id TEXT,
     body TEXT NOT NULL,
-    office_name TEXT,
+    office_id TEXT REFERENCES offices(id) ON DELETE SET NULL,
+    -- 辞退文は案件種別非依存(汎用) のため case_kind 列なし
     char_length INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX idx_decline_user_office ON decline_corpus(user_id, office_name);
+CREATE INDEX idx_decline_user_office ON decline_corpus(user_id, office_id);
 
 -- 0009 audit_logs
 CREATE TABLE audit_logs (
@@ -836,7 +855,7 @@ pub enum UserAction {
 - ✅ 5 レイヤ・約 52 コンポーネントの責務とインターフェース
 - ✅ 10 ユースケースのコマンド型・Result 型
 - ✅ 7 ステップ別 Queue + DLQ + saga 補償パターン
-- ✅ **14 D1 テーブル**(うち append-only 1: `consents`)のスキーマ + 主要インデックス + マイグレーション順序
+- ✅ **15 D1 テーブル**(うち append-only 1: `consents`)のスキーマ + 主要インデックス + マイグレーション順序
 - ✅ Webhook / 管理 API / Phase 2 ユーザー API のエンドポイント仕様
 - ✅ U2-EC-04 統合の 4 カテゴリエラー型階層
 
@@ -858,7 +877,7 @@ pub enum UserAction {
 | LLM 呼び出しタイムアウト | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-1 | 25 秒(暫定、`AbortSignal.timeout`) |
 | Queue リトライ回数 | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-3 | 3 回 + 指数バックオフ(暫定) |
 | Cron 頻度(Watch 更新) | Unit-2 | Unit-2 Infrastructure Design 完了時 | NFR-3 | 毎時(暫定) |
-| Cron 頻度(R2 cleanup / audit_logs アーカイブ) | Unit-7: 監視・運用 | Unit-7 Infrastructure Design 完了時 | NFR-5(保管) | 日次 / 週次(暫定) |
+| Cron 頻度(R2 mail-cleanup / D1 prune-audit / D1 prune-extracted) | Unit-7: 監視・運用 | Unit-7 Infrastructure Design 完了時 | NFR-5(保管) | 日次(R2)/ 週次(audit)/ 月次(extracted)(暫定) |
 | LLM 入出力トークン上限(プロンプト圧縮目標) | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト) | 入力 ≤ 1500、出力 ≤ 400(暫定) |
 | プロンプトキャッシュヒット率目標 | Unit-3 / Unit-5 / Unit-6 | βテスト中の運用調整 | NFR-7 | 70%(目標) |
 | `notification_event` の Flex Message テンプレート確定 | Unit-6 | Unit-6 Functional Design 完了時 | UX(P2 対応) | 雛形のみ、文言は MessageCatalog で確定 |

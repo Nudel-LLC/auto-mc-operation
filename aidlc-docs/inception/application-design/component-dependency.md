@@ -178,7 +178,7 @@ pub enum DeclinePayload {
 
 ## 4. データ永続化マッピング
 
-**ドメイン集約 ↔ D1 テーブル の対応**(全 14 テーブル網羅。集約とテーブルが 1:1 でないものは脚注参照):
+**ドメイン集約 ↔ D1 テーブル の対応**(全 15 テーブル網羅。集約とテーブルが 1:1 でないものは脚注参照):
 
 | ドメイン集約 | D1 テーブル | 暗号化 | 備考 |
 |-------------|-----------|--------|------|
@@ -186,12 +186,13 @@ pub enum DeclinePayload {
 | User(関連) | **`oauth_tokens`** | AES-256-GCM(F-09 / `key_id` 別カラム) | User 集約に内包する別テーブル(1:1) |
 | Consent | `consents`(`users` に FK) | — | append-only(トリガー) |
 | Message | `messages`(`users` に FK) | — | 本文は R2 |
-| OfficePattern | `office_patterns` | — | global、user スコープなし |
+| Office | `offices` | — | 事務所マスタ。`offices.id` を案件 / コーパスから参照 |
+| OfficePattern | `office_patterns`(`offices` に 1:1) | — | 抽出ヒント詳細サブテーブル |
 | ClassificationRule | `classification_rules`(+ KV キャッシュ) | — | global / user 両スコープ |
 | Case | `cases` | — | 集約ルート |
 | Schedule | `schedules`(`cases` に FK) | — | Case の構成要素 |
-| Entry | `entries`(`cases` / `schedules` に FK) | — | — |
-| Decline | `declines`(`cases` に FK) | — | proposed/approved/sent/failed |
+| Entry | `entries`(`cases` に FK / 1 case = 1 active) | — | 履歴は `status='superseded'` |
+| Decline | `declines`(`cases` に FK / `triggered_by_kind` で分類) | — | proposed/approved/sent/failed |
 | (Case 関連) | **`calendar_events`**(`users` / `cases` / `schedules` に FK) | — | A-7 ManageCalendar が CRUD する独立テーブル(1 Case = N 候補スロット = N events) |
 | PrCorpus | `pr_corpus`(`users` に FK) | — | 本人作成・永続 |
 | DeclineCorpus | `decline_corpus`(`users` に FK) | — | 本人作成・永続 |

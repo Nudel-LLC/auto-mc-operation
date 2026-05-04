@@ -2,7 +2,7 @@
 
 > **📑 ID 参照**: 本ドキュメントは複数 ID を参照する。`A-N`(ユースケース)の **正本は `components.md` §2**、`F-NN`(Foundation Story)の正本は `inception/user-stories/stories.md`、`FR-N` / `NFR-N` は `inception/requirements/requirements.md`。横断 ID 一覧は `aidlc-docs/inception/id-index.md`。
 
-D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**目的・用途・どのユースケースが読み書きするか**を網羅。
+D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**目的・用途・どのユースケースが読み書きするか**を網羅。
 
 このドキュメントは `application-design.md` Section 3 のデータモデル節を **詳細展開した独立資料** であり、Functional Design / Code Generation ステージで参照する一次情報源。
 
@@ -28,6 +28,7 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 | `oauth_tokens` | OAuth リフレッシュトークン保管(暗号化) | A-1 / A-10 | I-11 OAuth2Service |
 | `consents` | プライバシーポリシー同意履歴 | A-1 | A-2(処理開始時の同意確認) |
 | `messages` | 受信メールメタ | A-2 IngestMail | A-3 / A-4 / NeedsReview UI |
+| `offices` | 事務所マスタ(案件 / コーパスから参照) | A-4 ExtractCase / 管理 API | A-4 / A-6 / A-8 |
 | `office_patterns` | 事務所別書式パターン学習 | A-4 ExtractCase | A-4(Few-shot 構築時) |
 | `classification_rules` | ルールベース分類定義 | I-9 / 管理 API | A-3(全分類イベント) |
 | `cases` | 案件マスタ | A-4 ExtractCase | A-5〜A-9 |
@@ -129,8 +130,8 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 | `received_at` | TEXT | NOT NULL | メール受信時刻(Gmail 側) |
 | `classification` | TEXT | NULL 可 | 分類結果。`recruitment` / `decision` / `other` / NULL(未分類) |
 | `classified_by` | TEXT | NULL 可 | `rule`(ルールベース判定)/ `llm`(Haiku 判定)/ NULL。NFR-7 コスト分析(ルール率)に使用 |
-| `classification_confidence` | REAL | NULL 可 | LLM 判定時の信頼度(0.0-1.0)。閾値未満は `needs_review = 1` |
-| `needs_review` | INTEGER | NOT NULL DEFAULT 0 | 0/1。1 のメールは LINE で「原文確認してください」と通知 |
+| `classification_confidence` | REAL | NULL 可 | LLM 判定時の信頼度(0.0-1.0)。閾値未満は `needs_review = 1`。**閾値変更時の方針**: 過去レコードは更新せず、変更後に分類されるメールから新閾値を適用(過去の `needs_review` は判定時の閾値での結果のスナップショット) |
+| `needs_review` | INTEGER | NOT NULL DEFAULT 0 | 0/1 (SQLite には BOOLEAN 型がなく INTEGER 0/1 が公式推奨)。1 のメールは LINE で「原文確認してください」と通知 |
 | `raw_blob_key` | TEXT | NULL 可 | R2 上の原文オブジェクトキー(例: `messages/{user_id}/{message_id}.eml`)。NULL は本文未保管(プリフィルタで弾いた等) |
 | `raw_expires_at` | TEXT | NULL 可 | R2 オブジェクトの自動削除予定日時(NFR-5 30 日保管) |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
@@ -144,42 +145,61 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 
 ---
 
-## 5. `office_patterns` — 事務所別書式パターン学習
+## 5. `offices` — 事務所マスタ
 
-**目的**: 各事務所のメール書式を蓄積し、抽出精度を上げる(Few-shot 例の元データ)。
+**目的**: 案件・PR コーパス・辞退コーパスから参照される **事務所の正規化マスタ**。`office_patterns`(抽出パターン詳細)と分離することで、事務所単位の追加メタデータ(連絡先・契約状態等)の Phase 2 拡張を阻害しない。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
-| `id` | TEXT | PK / UUID v7 | パターン ID |
-| `sender_domain` | TEXT | NOT NULL UNIQUE | 事務所のメール送信元ドメイン(同一事務所は 1 行) |
-| `office_name` | TEXT | NULL 可 | 表示用事務所名(LLM 推定または手動登録) |
+| `id` | TEXT | PK / UUID v7 | 事務所 ID |
+| `sender_domain` | TEXT | NOT NULL UNIQUE | 事務所のメール送信元ドメイン(同定キー)。`office_patterns.sender_domain` と一致 |
+| `display_name` | TEXT | NOT NULL | 表示用事務所名(LLM 推定または管理 API での手動登録) |
+| `aliases_json` | TEXT | NULL 可 | JSON 配列。同一事務所の別表記(例: `["○○プロモーション", "○○PR"]`)。表示揺れ吸収用 |
+| `is_blocked` | INTEGER | NOT NULL DEFAULT 0 | 0/1。1 のとき A-3 ClassifyMail で全メールを `other` に振分(ユーザー個別ブロック) |
+| `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
+
+**インデックス**:
+- `idx_offices_domain ON offices(sender_domain)`(UNIQUE):受信メール → 事務所同定の最頻アクセス
+
+**書き込み**: A-4 ExtractCase(初回出現時に新規作成)、管理 API(運用者の手動登録・統合)
+**読み取り**: A-4 / A-6 / A-8(`office_id` 経由の表示・Few-shot 取得)
+
+---
+
+## 6. `office_patterns` — 事務所別書式パターン学習
+
+**目的**: 各事務所のメール書式を蓄積し、抽出精度を上げる(Few-shot 例の元データ)。`offices` への 1対1 サブテーブル(抽出ヒント詳細を分離)。
+
+| カラム | 型 | 制約 | 目的・用途 |
+|--------|------|------|-----------|
+| `office_id` | TEXT | PK / FK → `offices(id)` ON DELETE CASCADE | 親事務所(1 office = 1 pattern) |
 | `pattern_data` | TEXT | NOT NULL | JSON 文字列。サンプルレイアウト・特徴的キーワード・抽出済みフィールドの統計 |
-| `success_count` | INTEGER | NOT NULL DEFAULT 0 | この事務所からのメールで抽出成功した件数。Few-shot 採用優先度に使用 |
+| `success_count` | INTEGER | NOT NULL DEFAULT 0 | **永続累積カウンタ**。この事務所からのメールで抽出成功した件数。Few-shot 採用優先度に使用(リセットなし) |
 | `last_seen_at` | TEXT | NULL 可 | 最終受信時刻。古いパターンの整理に使用 |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
-**インデックス**: PK + UNIQUE のみ(行数は事務所数 = 数十程度)
+**インデックス**: PK のみ(行数は事務所数 = 数十程度)
 
 **書き込み**: A-4 ExtractCase(成功時にパターン更新)
 **読み取り**: A-4(プロンプト構築時に Few-shot 例として参照)
 
 ---
 
-## 6. `classification_rules` — ルールベース分類定義
+## 7. `classification_rules` — ルールベース分類定義
 
 **目的**: U1-02 第 1 段の判定ルールを **データとして外部化**(コードに直書きしない)、運用者が βテストに応じて追加・調整可能にする。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | ルール ID |
-| `scope` | TEXT | NOT NULL | `'global'`(全ユーザー共通)or `'user'`(ユーザー個別) |
+| `scope` | TEXT | NOT NULL | `'global'`(全ユーザー共通)or `'user'`(ユーザー個別)。**ユーザー個別ルールの想定ユースケース**: 特定の個人事務所のドメインだけ強制的にスキップ / 特定キーワードを含むメールを優先分類 等の運用調整 |
 | `user_id` | TEXT | NULL 可 FK → `users(id)` | `scope='user'` のときのみ NOT NULL |
 | `sender_domain_pattern` | TEXT | NULL 可 | 正規表現または完全一致のパターン |
 | `subject_keywords_json` | TEXT | NULL 可 | JSON 配列。`["募集"]` 等。AND マッチ |
 | `body_keywords_any_json` | TEXT | NULL 可 | JSON 配列。OR マッチ(いずれか含めばヒット) |
 | `body_keywords_all_json` | TEXT | NULL 可 | JSON 配列。AND マッチ(すべて含む必要) |
 | `target_label` | TEXT | NOT NULL | ヒット時に付ける分類ラベル(`recruitment` / `decision` / `other`) |
-| `priority` | INTEGER | NOT NULL DEFAULT 50 | ルール評価順。値が小さいほど先に評価(1 が最優先) |
+| `priority` | INTEGER | NOT NULL DEFAULT 50 | ルール評価順。値が小さいほど先に評価(1 が最優先)。**同一 priority の場合は `created_at ASC`(古いものが先)** |
 | `enabled` | INTEGER | NOT NULL DEFAULT 1 | 0/1。一時無効化用 |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
@@ -191,52 +211,56 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 
 ---
 
-## 7. `cases` — 案件マスタ(集約ルート)
+## 8. `cases` — 案件マスタ(集約ルート)
 
 **目的**: 抽出された案件 1 件を表す中核エンティティ。配下に `schedules` / `entries` / `declines` / `calendar_events` を持つ。
+
+**1 案件 = 1 エントリーが原則**(複数応募は `entries.status='superseded'` で履歴管理、§10 参照)。複数候補日や複数確定日は `schedules` 側の N 行 + `is_chosen` で表現。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | 案件 ID |
 | `user_id` | TEXT | NOT NULL FK → `users(id)` | 所有者 |
-| `source_message_id` | TEXT | NOT NULL FK → `messages(id)` | 抽出元メール |
-| `office_id` | TEXT | NULL 可 FK → `office_patterns(id)` ON DELETE SET NULL | 既知事務所への紐付け。新規事務所は NULL のまま運用、後で OfficePattern 作成時に更新 |
-| `office_name` | TEXT | NOT NULL | 事務所名(office_patterns 未登録でも案件は成立する) |
+| `source_message_id` | TEXT | NOT NULL FK → `messages(id)` | **募集メール**(抽出元の起点メール)。決定通知メール等は同一 `gmail_thread_id` 経由で関連付け、Phase 2 で必要なら明示的な `case_messages` 中間表を追加 |
+| `office_id` | TEXT | NULL 可 FK → `offices(id)` ON DELETE SET NULL | 既知事務所への紐付け。NULL は新規事務所(初回出現時に A-4 が `offices` に INSERT して紐付け) |
+| `office_name_snapshot` | TEXT | NOT NULL | 案件抽出時点の事務所名スナップショット(`offices.display_name` が後日変更されても案件記録は当時の名前を保持) |
 | `subject_name` | TEXT | NOT NULL | 案件名(イベント名・収録名等) |
 | `location` | TEXT | NULL 可 | 場所文字列(住所・会場名)。抽出失敗時は NULL + warning |
 | `compensation_text` | TEXT | NULL 可 | 報酬の生表記(例: `"1日 25,000 円(税込)"`、`"応相談"`) |
 | `compensation_amount` | INTEGER | NULL 可 | パース可能な場合の数値(円)。Phase 2 CSV / 集計用 |
 | `deadline_at` | TEXT | NULL 可 | エントリー締切(ISO 8601 UTC)。Cron で締切前リマインドに使用 |
-| `pr_required` | INTEGER | NOT NULL DEFAULT 0 | 0/1。U2-EC-03 で判定。1 のとき A-6 が PR 文を Few-shot で生成 |
+| `pr_required` | INTEGER | NOT NULL DEFAULT 0 | 0/1。U2-EC-03 で抽出時に LLM 判定。1 のとき A-6 が PR 文を Few-shot で生成。**理由**: A-6 ComposeEntryDraft が PR 文 Few-shot を取得するか分岐するために必須。**更新メカニズム**: 抽出時自動判定 + ユーザーが LINE 経由で訂正可(運用 API) |
 | `other_conditions` | TEXT | NULL 可 | 衣装・持ち物・年齢制限など自由記述条件 |
 | `extraction_warnings_json` | TEXT | NULL 可 | 必須項目欠落時の警告内容(JSON) |
-| `status` | TEXT | NOT NULL DEFAULT 'pending' | `pending` / `entered`(下書き作成済) / `confirmed`(決定) / `declined` / `expired`(締切超過) |
+| `status` | TEXT | NOT NULL DEFAULT 'pending' | **案件のワークフロー状態**: `pending`(抽出済 / 未エントリー)/ `entered`(下書き作成済) / `confirmed`(事務所決定通知受信) / `declined`(辞退送信) / `expired`(締切超過)。`entries.status` は **「ユーザーの行動」状態**(下書き / 送信 / 承認待ち)を表すのに対し、こちらは **「案件全体」のフェーズ**を表す |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
 **インデックス**:
 - `idx_cases_user_status ON cases(user_id, status, deadline_at)`:ステータス別一覧 + 締切順
-- `idx_cases_user_office ON cases(user_id, office_name)`:同一事務所案件の検索
+- `idx_cases_user_office ON cases(user_id, office_id)`:同一事務所案件の検索
 
 **書き込み**: A-4 ExtractCase(初回作成)、A-5 / A-6 / A-7 / A-8(`status` 更新)
 **読み取り**: A-5〜A-9 全段階
 
 ---
 
-## 8. `schedules` — 候補スロット(複数日程対応)
+## 9. `schedules` — 候補スロット(複数日程対応)
 
 **目的**: U2-02 で定義した複数日程・複数時間枠を独立行で管理し、スロット単位で重複判定 / 確定 / 削除できる。
+
+**`is_chosen` の意味**: 1 案件で **複数行が `is_chosen=1` になり得る**(事務所が「A日 / B日 両日とも出演してください」と確定するケース等)。確定スロット数 = 0 / 1 / N の全パターンを許容。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | スロット ID(`slot_id` として外部から参照) |
 | `case_id` | TEXT | NOT NULL FK → `cases(id)` ON DELETE CASCADE | 親案件。case 削除時に連動削除 |
-| `start_at` | TEXT | NOT NULL | 開始日時(ISO 8601、`tz` で示すタイムゾーン) |
-| `end_at` | TEXT | NULL 可 | 終了日時。NULL は終了未定スロット |
-| `tz` | TEXT | NOT NULL DEFAULT 'Asia/Tokyo' | タイムゾーン(MVP は固定だが Phase 3 で拡張可能) |
+| `start_at` | TEXT | NOT NULL | 開始日時(**UTC ISO 8601 で保存**、表示時に `tz` カラムで現地時刻へ変換) |
+| `end_at` | TEXT | NULL 可 | 終了日時(UTC)。NULL は終了未定スロット |
+| `tz` | TEXT | NOT NULL DEFAULT 'Asia/Tokyo' | 元データのタイムゾーン(MVP は固定だが Phase 3 で拡張可能)。表示・カレンダー登録時に使用 |
 | `raw_text` | TEXT | NULL 可 | メール本文中の元表現(抽出根拠保持、後の検証用) |
 | `confidence` | REAL | NOT NULL DEFAULT 1.0 | LLM の抽出信頼度(0.0-1.0)。閾値未満は `needs_review` |
 | `overlap_status` | TEXT | NULL 可 | 重複判定結果。`free` / `partial` / `full` / NULL(未判定) |
-| `is_chosen` | INTEGER | NOT NULL DEFAULT 0 | 0/1。確定後 1 つだけ 1 になる(他は削除されるが履歴として 0 のまま残るケースあり) |
+| `is_chosen` | INTEGER | NOT NULL DEFAULT 0 | 0/1。事務所が確定したスロット(1 案件で 0/1/複数行が立ち得る) |
 | `created_at` | TEXT | NOT NULL | 作成時刻(更新は通常しない) |
 
 **インデックス**:
@@ -248,45 +272,57 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 
 ---
 
-## 9. `entries` — エントリー実績
+## 10. `entries` — エントリー実績
 
 **目的**: 案件にエントリー(下書き作成 → ユーザー送信)した記録。確定後の状態追跡 + Phase 2 の請求 CSV 出力源。
+
+**カーディナリティ**: **1 案件 = 1 active entry**(同時に有効なエントリーは 1 件)。応募取り下げ + 再応募などで履歴が必要な場合は古い行を `status='superseded'` にして新規 INSERT(append-only 履歴)。確定スロット情報は `entries` ではなく `schedules.is_chosen` を参照(複数確定対応のため)。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | エントリー ID |
 | `case_id` | TEXT | NOT NULL FK → `cases(id)` | 対象案件 |
-| `chosen_schedule_id` | TEXT | NULL 可 FK → `schedules(id)` | エントリー時点で希望していたスロット(後で確定スロットになる場合あり) |
-| `draft_id` | TEXT | NULL 可 | Gmail Draft ID。送信前のステータス確認に使用 |
+| `draft_id` | TEXT | NULL 可 | **エントリーメールの** Gmail Draft ID(辞退下書きは `declines.decline_draft` 側で別途管理)。送信前のステータス確認に使用 |
 | `pr_used` | INTEGER | NOT NULL DEFAULT 0 | 0/1。PR 文を含めたかどうか(運用統計用) |
 | `submitted_at` | TEXT | NULL 可 | ユーザーが Gmail から実送信した時刻(ヒューリスティクスで検知) |
 | `confirmed_at` | TEXT | NULL 可 | 決定連絡を受信した時刻 |
-| `status` | TEXT | NOT NULL DEFAULT 'pending' | `pending`(下書き作成済)/ `submitted`(送信検知)/ `confirmed` / `declined` |
+| `status` | TEXT | NOT NULL DEFAULT 'pending' | `pending`(下書き作成済)/ `submitted`(送信検知)/ `confirmed` / `declined` / `superseded`(取り下げ後の旧履歴)。**`cases.status` が「案件全体のフェーズ」であるのに対し、こちらは「ユーザーの行動」状態** |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
 **インデックス**:
 - `idx_entries_case ON entries(case_id)`:案件→エントリー
+- `idx_entries_case_active ON entries(case_id) WHERE status != 'superseded'`:現役エントリー取得(部分インデックス)
 - `idx_entries_status ON entries(status)`:Phase 2 CSV エクスポート用
 
-**書き込み**: A-6 ComposeDraft(初回作成)、A-3 / A-7(状態更新)
+**書き込み**: A-6 ComposeDraft(初回作成)、A-3 / A-7(状態更新)、A-6(取り下げ時に旧 `superseded` 化 + 新 `pending` INSERT)
 **読み取り**: A-9 通知時、Phase 2 CSV エクスポート
+
+**確定スロットの参照方法**: 「この案件で確定したスロット」を取得する場合は `SELECT * FROM schedules WHERE case_id = ? AND is_chosen = 1` を使う(複数確定対応のため `entries` 側に単一 FK を持たない)。
 
 ---
 
-## 10. `declines` — 辞退送信記録
+## 11. `declines` — 辞退送信記録
 
 **目的**: 重複検出 → 辞退メール下書き → ユーザー承認 → 送信、の各段階を追跡。
+
+**辞退理由の分類**: 重複案件以外にプライベート予定や手動指示でも辞退が発生し得るため、`triggered_by_kind` で分類する。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | 辞退レコード ID |
 | `case_id` | TEXT | NOT NULL FK → `cases(id)` | 辞退する案件 |
-| `triggered_by_case` | TEXT | NOT NULL FK → `cases(id)` | 辞退の原因となった決定案件(参照確認・統計用) |
+| `triggered_by_kind` | TEXT | NOT NULL | 辞退理由の種別: `'case'`(他案件の決定で重複)/ `'private_event'`(個人予定との重複)/ `'manual'`(ユーザーの手動指示) |
+| `triggered_by_case` | TEXT | NULL 可 FK → `cases(id)` | `triggered_by_kind='case'` の場合のみ NOT NULL。原因案件への参照 |
+| `triggered_by_note` | TEXT | NULL 可 | `'private_event'` / `'manual'` の場合の理由メモ(任意のテキスト)。プライベート詳細はユーザー入力次第で記載 |
 | `decline_draft` | TEXT | NOT NULL | 生成された辞退本文(全文)。送信後も保管(本人の文体学習・監査) |
 | `sent_message_id` | TEXT | NULL 可 | Gmail で送信した際のメッセージ ID |
 | `status` | TEXT | NOT NULL DEFAULT 'proposed' | `proposed`(承認待ち)/ `approved` / `sent` / `failed` |
 | `sent_at` | TEXT | NULL 可 | 実送信時刻 |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
+
+**整合性制約**(CHECK 制約):
+- `triggered_by_kind = 'case'` のときは `triggered_by_case IS NOT NULL`
+- `triggered_by_kind != 'case'` のときは `triggered_by_case IS NULL`
 
 **インデックス**:
 - `idx_declines_case ON declines(case_id)`:案件→辞退候補
@@ -296,7 +332,7 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 
 ---
 
-## 11. `calendar_events` — サービス所有のカレンダーイベント追跡
+## 12. `calendar_events` — サービス所有のカレンダーイベント追跡
 
 **目的**: 本サービスが Google カレンダーに作成した `[仮]` / `[確定]` イベントの状態を D1 側でも管理(プライベート予定との区別 / 一括削除のため)。
 
@@ -319,54 +355,58 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 
 ---
 
-## 12. `pr_corpus` — PR 文学習データ(本人作成、永続)
+## 13. `pr_corpus` — PR 文学習データ(本人作成、永続)
 
 **目的**: ユーザーが過去に書いたエントリーメール本文を Few-shot 例として保管。**本人作成の文章 = 本人帰属、永続保管**(NFR-5)。
+
+**粒度**: **1 PR 文 = 1 送信メール本文**(過去の Sent フォルダから 1 メール本文 = 1 行で取り込む)。`source_message_id` は単一の送信メッセージ ID を指す。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | レコード ID |
 | `user_id` | TEXT | NOT NULL FK → `users(id)` | 所有者 |
-| `source_message_id` | TEXT | NULL 可 | 元の送信メッセージ ID(取り込み元の追跡) |
+| `source_message_id` | TEXT | NULL 可 | 元の送信メッセージ ID(1 行 = 1 メール本文)。Cron 取込以外の経路(管理 API での投入)では NULL |
 | `body` | TEXT | NOT NULL | PR 文本体(プレーンテキスト) |
-| `office_name` | TEXT | NULL 可 | 宛先事務所(同一事務所別 Few-shot 採用優先度に使用) |
-| `case_kind` | TEXT | NULL 可 | 推定案件種別(`"MC"` / `"コンパニオン"` / `"司会"` 等)。文体選択のヒント |
+| `office_id` | TEXT | NULL 可 FK → `offices(id)` ON DELETE SET NULL | 宛先事務所(同一事務所別 Few-shot 採用優先度に使用) |
+| `case_kind` | TEXT | NULL 可 | 推定案件種別(`"MC"` / `"コンパニオン"` / `"司会"` 等)。**PR 文側のみで保持する理由**: PR 文体は案件種別に強く依存(MC は固い文体、コンパニオンは柔らかめ等)するが、辞退文は種別非依存で「失礼ながら…」の汎用パターンに収束するため `decline_corpus` には不要 |
 | `char_length` | INTEGER | NOT NULL | 本文文字数。短/中/長の長さ推定で利用 |
 | `created_at` | TEXT | NOT NULL | 取込時刻 |
 
 **インデックス**:
-- `idx_pr_user_office ON pr_corpus(user_id, office_name)`:同一事務所宛 Few-shot 取得
+- `idx_pr_user_office ON pr_corpus(user_id, office_id)`:同一事務所宛 Few-shot 取得
 
 **書き込み**: A-1 OnboardUser(初回 Sent フォルダから収集)、Cron(定期再収集)
 **読み取り**: A-6 ComposeDraft(プロンプト Few-shot 構築)
 
 ---
 
-## 13. `decline_corpus` — 辞退文学習データ(本人作成、永続)
+## 14. `decline_corpus` — 辞退文学習データ(本人作成、永続)
 
 **目的**: ユーザーが過去に書いた辞退メール本文を Few-shot 例として保管。U7-02 の辞退下書き生成精度を上げる。**本人作成 = 永続保管**。
+
+**`pr_corpus` との粒度差**: 辞退文は案件種別による文体差が小さく、汎用的な「失礼ながら…」パターンに収束するため `case_kind` 列を持たない。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | レコード ID |
 | `user_id` | TEXT | NOT NULL FK → `users(id)` | 所有者 |
-| `source_message_id` | TEXT | NULL 可 | 元の送信メッセージ ID |
+| `source_message_id` | TEXT | NULL 可 | 元の送信メッセージ ID(1 辞退 = 1 メール) |
 | `body` | TEXT | NOT NULL | 辞退文本体 |
-| `office_name` | TEXT | NULL 可 | 宛先事務所(同一事務所別 Few-shot 優先) |
+| `office_id` | TEXT | NULL 可 FK → `offices(id)` ON DELETE SET NULL | 宛先事務所(同一事務所別 Few-shot 優先) |
 | `char_length` | INTEGER | NOT NULL | 本文文字数 |
 | `created_at` | TEXT | NOT NULL | 取込時刻 |
 
 **インデックス**:
-- `idx_decline_user_office ON decline_corpus(user_id, office_name)`:同一事務所宛 Few-shot 取得
+- `idx_decline_user_office ON decline_corpus(user_id, office_id)`:同一事務所宛 Few-shot 取得
 
 **書き込み**: A-1 OnboardUser(初回 Sent フォルダから「辞退/失礼ながら/お見送り」キーワードで収集)、Cron(定期)
 **読み取り**: A-8 DetectAndDecline(辞退下書き生成時の Few-shot)
 
 ---
 
-## 14. `audit_logs` — 監査ログ(append-only 同等)
+## 15. `audit_logs` — 監査ログ(append-only 同等)
 
-**目的**: F-06 で定義された **`actor` / `action_source` を必須化した完全追跡**。NFR-5 で 12 ヶ月保管(古いものは Cron でアーカイブ → R2)。
+**目的**: F-06 で定義された **`actor` / `action_source` を必須化した完全追跡**。NFR-5 で 12 ヶ月保管(MVP では D1 から完全削除、Phase 2 で長期保管要件発生時に再設計)。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
@@ -390,11 +430,11 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 **書き込み**: 全ユースケース(成功・失敗の両方)、F-06 Logger 経由
 **読み取り**: 運用(障害解析)、F-14 メトリクス集計、コンプライアンス監査
 
-**保管ポリシー**: 12 ヶ月で Cron が古いレコードを R2 にアーカイブ、D1 から削除(NFR-5)。アーカイブ済みデータは検索に時間がかかるが復元可能。
+**保管ポリシー**: 12 ヶ月超は Cron で D1 から物理削除(MVP 方針)。R2 アーカイブはメール原文に限定し、`audit_logs` は MVP では実施しない(§17 参照)。
 
 ---
 
-## 15. テーブル間の依存関係(削除カスケード視点)
+## 16. テーブル間の依存関係(削除カスケード視点)
 
 ```mermaid
 erDiagram
@@ -406,16 +446,20 @@ erDiagram
     users ||--o{ decline_corpus : "1対多"
     users ||--o{ classification_rules : "scope=user 時のみ"
     users ||--o{ calendar_events : "1対多"
-    users ||--o{ audit_logs : "1対多 / SET NULL on user delete?"
+    users ||--o{ audit_logs : "1対多 / SET NULL on user delete"
+
+    offices ||--o| office_patterns : "1対1 / CASCADE"
+    offices ||--o{ cases : "office_id / SET NULL"
+    offices ||--o{ pr_corpus : "office_id / SET NULL"
+    offices ||--o{ decline_corpus : "office_id / SET NULL"
 
     cases ||--|{ schedules : "1対多 / CASCADE"
-    cases ||--o{ entries : "1対多"
-    cases ||--o{ declines : "1対多 (case_id + triggered_by_case の2系統)"
+    cases ||--|| entries : "1対1 active (履歴は superseded)"
+    cases ||--o{ declines : "1対多 (case_id)"
+    cases ||--o{ declines : "0対多 (triggered_by_case, kind=case 時のみ)"
     cases ||--o{ calendar_events : "1対多"
-    cases }o--o| office_patterns : "office_id / SET NULL on delete"
 
-    messages ||--o| cases : "source_message_id"
-    schedules ||--o| entries : "chosen_schedule_id"
+    messages ||--o| cases : "source_message_id (募集メール)"
     schedules ||--o{ calendar_events : "schedule_id"
 ```
 
@@ -426,26 +470,35 @@ erDiagram
 
 ---
 
-## 16. データ保存方針(NFR-5 準拠)
+## 17. データ保存方針(NFR-5 準拠)
 
-| データ種別 | 保管期間 | 該当テーブル / R2 |
-|-----------|---------|-------------------|
-| メール本文(原文) | 30 日 | R2(`raw_blob_key`)、`messages.raw_expires_at` で管理 |
-| 構造化抽出データ | 24 ヶ月 | D1 全般(`messages` / `cases` / `schedules` / `entries` / `declines` / `calendar_events`) |
-| PR 文学習データ | 永続 | D1 `pr_corpus` |
-| 辞退文学習データ | 永続 | D1 `decline_corpus` |
-| 同意履歴 | 永続(append-only) | D1 `consents` |
-| 監査ログ | 12 ヶ月(D1)+ R2 アーカイブ | D1 `audit_logs` → R2 |
-| OAuth トークン | ユーザー在籍期間中 | D1 `oauth_tokens`(暗号化) |
+**MVP の R2 利用方針**: **メール原文(`.eml`)に限定**。`audit_logs` / 構造化データの R2 アーカイブは行わず、保管期間経過後は D1 から完全削除する。理由:
+- 実規模(MVP 数百ユーザー)では D1 ストレージは全く逼迫しない
+- 税務関連の長期保管(請求 CSV 等)は Phase 2 機能のため MVP では不要
+- アーカイブ → 復元の運用コストを MVP では持たない
 
-**Cron による削除/アーカイブ ジョブ**(F-14 / F-13 範囲):
-- `r2-cleanup` (毎日): `messages.raw_expires_at < now()` の R2 オブジェクトを削除し `raw_blob_key = NULL` に更新
-- `d1-archive-audit` (毎週): 12 ヶ月超の `audit_logs` を R2 にエクスポート → D1 から削除
-- `d1-archive-extracted` (毎月): 24 ヶ月超の `messages` / `cases` / `schedules` / `entries` / `declines` を R2 にエクスポート → D1 から削除
+| データ種別 | 保管期間 | 保管先 | 期限後の処理 |
+|-----------|---------|--------|------------|
+| メール本文(原文) | 30 日 | **R2**(`raw_blob_key`)、`messages.raw_expires_at` で管理 | R2 オブジェクトライフサイクルで自動削除 |
+| 構造化抽出データ | 24 ヶ月 | D1(`messages` / `cases` / `schedules` / `entries` / `declines` / `calendar_events`) | D1 から物理削除 |
+| PR 文学習データ | 永続 | D1 `pr_corpus` | (削除なし) |
+| 辞退文学習データ | 永続 | D1 `decline_corpus` | (削除なし) |
+| 同意履歴 | 永続(append-only) | D1 `consents` | (削除なし) |
+| 監査ログ | 12 ヶ月 | D1 `audit_logs` | D1 から物理削除 |
+| OAuth トークン | ユーザー在籍期間中 | D1 `oauth_tokens`(暗号化) | 退会時に削除 |
+
+**Cron による削除ジョブ**(F-14 / F-13 範囲):
+- `r2-mail-cleanup` (R2 ライフサイクルで自動): `raw_expires_at` 経過した `.eml` オブジェクトを自動削除し、対応する `messages.raw_blob_key` を Cron で NULL に更新
+- `d1-prune-audit` (毎週): 12 ヶ月超の `audit_logs` を D1 から物理削除
+- `d1-prune-extracted` (毎月): 24 ヶ月超の `messages` / `cases` / `schedules` / `entries` / `declines` / `calendar_events` を D1 から物理削除
+
+**Phase 2 で再検討する項目**:
+- 請求 CSV / 税務関連の長期保管(R2 アーカイブ + ユーザー主導エクスポート)
+- 監査ログの長期保管要件(コンプライアンス監査依頼時)
 
 ---
 
-## 17. 今後の拡張(Phase 2 以降の追加候補)
+## 18. 今後の拡張(Phase 2 以降の追加候補)
 
 | テーブル | 用途 | 追加タイミング |
 |---------|------|----------------|

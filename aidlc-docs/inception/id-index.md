@@ -59,7 +59,7 @@
 | 機能要件 | 対応 A-N | 主要テーブル(`data-model.md`) |
 |---------|---------|------------------------------|
 | FR-1 メール分類 | A-2 / A-3 | `messages` / `classification_rules` |
-| FR-2 案件抽出 | A-4 | `cases` / `schedules` / `office_patterns` |
+| FR-2 案件抽出 | A-4 | `cases` / `schedules` / `offices` / `office_patterns` |
 | FR-3 カレンダー空き確認 | A-5 | `cases` / `schedules`(`overlap_status`)/ Calendar API freeBusy |
 | FR-4 エントリー下書き作成 | A-6 | `entries` / `pr_corpus` |
 | FR-5 LINE 通知 | A-9 | (D1 への永続化なし、`audit_logs` のみ) |
