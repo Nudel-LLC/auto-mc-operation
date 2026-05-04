@@ -1,6 +1,12 @@
-## PR 種別
+## PR 属性
 
-- [x] **AIDLC stage** — AIDLC ワークフローのステージ完了 PR
+<!-- 含まれる変更属性すべてにチェック(複数可) -->
+
+- [ ] **changes-code** — 実装コードの追加・修正を伴う
+- [ ] **changes-docs** — ドキュメント変更を伴う
+- [ ] **changes-infra** — インフラ定義変更を伴う
+- [ ] **changes-config** — CI / 設定変更を伴う
+- [x] **changes-aidlc-stage** — AIDLC ワークフローのステージ成果物追加・改訂
 
 <!-- 該当ステージにチェック -->
 - [ ] Inception: Workspace Detection

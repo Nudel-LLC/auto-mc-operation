@@ -1,6 +1,12 @@
-## PR 種別
+## PR 属性
 
-- [x] **Code** — 実装コードの追加・修正
+<!-- 含まれる変更属性すべてにチェック(複数可) -->
+
+- [x] **changes-code** — 実装コードの追加・修正
+- [ ] **changes-docs** — ドキュメント変更を伴う
+- [ ] **changes-infra** — インフラ定義変更を伴う
+- [ ] **changes-config** — CI / 設定変更を伴う
+- [ ] **changes-aidlc-stage** — AIDLC 成果物変更を伴う
 
 ## 概要
 
