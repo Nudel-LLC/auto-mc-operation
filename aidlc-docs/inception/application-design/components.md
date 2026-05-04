@@ -83,7 +83,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | **I-4** | `AnthropicClient` | `LlmClient` を実装。Claude Haiku、Tool use(JSON schema 強制)、prompt cache |
 | **I-5** | `D1Repositories` | 各 `*Repository` ドメイントレイトを `sqlx`(または `worker::D1`)で実装 |
 | **I-6** | `KvStore` | KV ラッパー(冪等性キー、ルールキャッシュ、セッション) |
-| **I-7** | `R2Storage` | R2 ラッパー(メール原文 30 日保管、Logpush 出力先、CSV 一時 URL[Phase 2]) |
+| **I-7** | `R2Storage` | R2 ラッパー(メール原文 30 日保管、監査ログアーカイブ、Logpush 出力先、CSV 一時 URL は `[Phase 2: P2-08]`) |
 | **I-8** | `QueueProducer` / `QueueConsumer` | Cloudflare Queues 抽象化(Q2=A により ステップ別 7 Queue) |
 | **I-9** | `ClassificationRuleEngine` | U1-02 のルールベース分類(KV からルール取得、AND/OR/閾値評価) |
 | **I-10** | `CryptoService` | F-09: AES-256-GCM 暗号化/復号、`key_id` ベースの世代管理 |

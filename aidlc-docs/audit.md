@@ -668,3 +668,29 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (コーパス取り込み期間制限の追加)
 
 ---
+
+## User Stories — Phase 2 Story 拡張 + 設計文書の Phase 2 言及整理 + 管理規約追加
+**Timestamp**: 2026-05-04T18:40:00Z
+**User Input**: Aでお願いします。文書中に残っている不要なフェーズ2へのコメントも合わせて整理してください。またMVPで扱わないものは、そのストーリーのドキュメントに吸収されるようにai側の挙動を制御するための仕組みづくりも調整お願いします
+**AI Response**:
+- **stories.md**: Phase 2 Epic に **P2-09〜P2-12** を 4 件追加(P2-01〜P2-08 → P2-01〜P2-12)
+  - P2-09: アカウントデータ管理拡張(削除前エクスポート / グレースピリオド 7 日 / R2 ライフサイクル / audit 匿名化 Cron)
+  - P2-10: コーパス取り込み拡張(取り込み期間ユーザー設定 / R2 アーカイブ / ベテラン MC 対応)
+  - P2-11: データモデル詳細化(case_messages 中間表 / pattern_revisions 履歴)
+  - P2-12: 税務関連長期保管(P2-08 請求 CSV の長期基盤、所得税法 5〜7 年要件)
+- **id-index.md**: §1 P2-NN 範囲を `P2-01〜P2-12` に更新、参照先に data-model.md §17/§18 を追加
+- **設計文書のインライン Phase 2 言及を整理** (data-model.md / application-design.md / components.md):
+  - すべての「Phase 2 で〜」記述を `[Phase 2: P2-NN]` 形式の Story ID リンクに置換
+  - data-model.md §19「拡張候補」表を Story ID と双方向リンク化
+  - インライン詳述を削除し、stories.md を一次情報源に統一
+- **id-index.md §6**(新規): Phase 2 / MVP 範囲外項目の管理規約を制定
+  - 必須手順: 既存 P2-NN 検索 → 吸収 or 新規追加 → id-index 同期 → `[Phase 2: P2-NN]` リンクのみ記述
+  - 設計文書での記述パターン例 / 禁止事項 / AI 執筆チェックリスト
+  - 自動検証(将来候補): CI で `[Phase 2: P2-NN]` リンク漏れを検出
+- **CLAUDE.md**: プロジェクトルールに「Phase 2 / MVP 範囲外項目の管理規約(MANDATORY)」セクション追加
+  - AI が「Phase 2 で〜」を提案する際の必須手順を明記
+  - 編集前チェックリスト + 違反時の即時修正規定
+- **execution-plan.md**: Story 規模を `58 → 62 Story`、Phase 2 概略を `8 → 12` に更新
+**Context**: INCEPTION - User Stories / Application Design (Phase 2 管理体系の整備)
+
+---

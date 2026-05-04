@@ -15,7 +15,7 @@
 | **SECURITY-NN** | SECURITY-01〜15(全 15 ルール) | セキュリティ拡張ルール(`security-baseline` Extension) | `.aidlc-rule-details/extensions/security/baseline/security-baseline.md` | requirements.md NFR-4(全 15 ルールへ参照)、application-design.md §4 / §4.6 |
 | **F-NN** | F-01〜F-14 | **Foundation Story**(基盤・最初に開発) | `inception/user-stories/stories.md` Foundation Epic セクション | application-design.md レビュー反映履歴、components.md `Implements` 行、各設計成果物 |
 | **UN-NN** | U1-01, U2-EC-04 等 | **MVP Use Case Story** | `inception/user-stories/stories.md` MVP Use Case Epic セクション(Use Case 1〜7) | application-design.md A-N の `Implements` 行 |
-| **P2-NN** | P2-01〜P2-08 | **Phase 2 Story 概略** | `inception/user-stories/stories.md` Phase 2 Epic セクション | requirements.md §4.2、application-design.md §17 |
+| **P2-NN** | P2-01〜P2-12 | **Phase 2 Story 概略** | `inception/user-stories/stories.md` Phase 2 Epic セクション | requirements.md §4.2、application-design.md §17、data-model.md(§17 アカウント削除 / §18 保管方針) |
 | **P1 / P2(ペルソナ)** | P1, P2 | **ユーザーペルソナ**(P1: AI 慣れ / P2: AI 未経験) | `inception/user-stories/personas.md` | stories.md 構成方針、application-design.md §1.0 |
 | **D-NN** | D-1〜D-19 + D-18.5 | **ドメイン層コンポーネント** | `inception/application-design/components.md` §1 ドメイン層 | component-methods.md(シグネチャ)、component-dependency.md(依存マトリクス) |
 | **A-N** | A-1〜A-11 | **アプリケーション層ユースケース** | `inception/application-design/components.md` §2 アプリケーション層 | services.md(オーケストレーション)、component-dependency.md、data-model.md |
@@ -123,3 +123,43 @@
 - 本ドキュメントは **正本ではなくインデックス**。各 ID の意味の正本は §1 「正本(定義元)」列のドキュメントを優先
 - ID を新規追加・廃止する際は **本ドキュメントを併せて更新**(将来 CI で自動検証する候補)
 - レビュー指摘 ID(C/W/S/N)は時系列でレビュー履歴に保管され、再レビュー後に解消した場合も履歴として残る(削除しない)
+
+---
+
+## 6. Phase 2 / MVP 範囲外項目の管理規約
+
+設計議論やレビューで **「MVP で扱わない」「Phase 2 で〜」「将来拡張」** とした項目は、必ず以下の手順で **stories.md の Story として一元管理** する。設計文書のインライン記述に散逸させない。
+
+### 6.1 必須手順(項目を Phase 2 行きと判断した時点で実施)
+
+1. **既存 Story の検索**: `aidlc-docs/inception/user-stories/stories.md` Phase 2 Epic セクション(`P2-01〜`)に該当するテーマがあるか確認
+2. **既存があれば追記**: 既存 `P2-NN` の概要に bullet を追加(タイトルが大幅に変わる場合のみ Story 名を更新)
+3. **既存がなければ新規追加**: 末尾に新しい `P2-NN` 行を追加。形式: `| **P2-NN** | タイトル | 概要(MVP 移送理由 + 期待される機能) |`
+4. **id-index.md §1 の P2-NN 範囲を同期**: `P2-01〜P2-NN` を最新値に更新
+5. **設計文書の記述方法**: data-model.md / application-design.md / components.md / services.md 等から Phase 2 を言及する場合、**インライン詳述は禁止**。代わりに **`[Phase 2: P2-NN]`** の形式で Story ID リンクのみ記述
+
+### 6.2 設計文書での記述パターン
+
+| 用途 | 記述例 |
+|------|--------|
+| カラムの将来用途を示唆 | `| カラム名 | 型 | 制約 | 用途。\`[Phase 2: P2-08]\` で請求 CSV エクスポートに使用 \|` |
+| セクションの拡張予告 | `### 17.6 拡張予定(Phase 2)\n\n本セクションの拡張は \`[Phase 2: P2-09]\` に集約:\n- ...\n- ...` |
+| インデックス | data-model.md §19 のように **テーブル名 → P2-NN** マッピング表のみ |
+
+### 6.3 禁止事項(アンチパターン)
+
+- ❌ 設計文書に「Phase 2 で〜を追加する」「Phase 2 で再設計」とだけ書いて Story を作らない
+- ❌ Phase 2 機能の詳細仕様を data-model.md / application-design.md にインラインで何段落も書く(stories.md に書く)
+- ❌ 同じ Phase 2 アイデアを複数の設計文書に重複記述する(stories.md の P2-NN を単一の正本として参照させる)
+
+### 6.4 AI による執筆時のチェックリスト
+
+設計文書の編集セッションで「Phase 2 で〜」と書きたくなった際、提出前に必ず:
+
+- [ ] 該当する `P2-NN` が stories.md にあるか確認した
+- [ ] なければ stories.md に新規 Story を追加した
+- [ ] あれば既存 Story の概要に項目を追記した
+- [ ] 設計文書のインライン記述は `[Phase 2: P2-NN]` 形式のリンクのみにした
+- [ ] id-index.md §1 の P2-NN 範囲が最新値か確認した
+
+**自動検証(将来候補)**: 設計文書(`aidlc-docs/inception/application-design/**/*.md`)に "Phase 2" の文字列が含まれる場合、`[Phase 2: P2-NN]` 形式のリンクが伴っているかを CI でチェック。リンクが無い箇所はビルド失敗。

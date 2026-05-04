@@ -603,7 +603,7 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 |------------------|---------|------|
 | **公開 Webhook** | 署名検証 | LINE: `X-Line-Signature`(HMAC-SHA256) / GCP Pub/Sub: JWT(Google が署名)/ OAuth Callback: `state` パラメータ(CSRF 対策 + 開始リクエスト紐付け、有効期間付き、サーバー側 KV で照合) |
 | **管理 API** | Bearer トークン | `Authorization: Bearer <token>`、トークンは Wrangler secrets で管理、IP 許可リスト併用、**`user_id` パラメータの権限チェック必須**(運用者ミスによる他ユーザーデータ操作を防止 / SECURITY-08 BOLA 防止) |
-| **ユーザー API** | (Phase 2) JWT | LIFF + JWT、IDOR 防止のため `user_id` をトークンクレームから取得し、リソース所有確認(SECURITY-08) |
+| **ユーザー API** | `[Phase 2: P2-02]` JWT | LIFF + JWT、IDOR 防止のため `user_id` をトークンクレームから取得し、リソース所有確認(SECURITY-08) |
 
 ### 4.3 レート制限
 
@@ -612,7 +612,7 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 | LINE Webhook | LINE 側準拠(120 req/min/bot) | バーストは Queues で吸収 |
 | Pub/Sub | Google 側準拠 | 同上 |
 | 管理 API | 60 req/min/token | KV カウンタ |
-| ユーザー API(Phase 2) | 30 req/min/user | Durable Object でユーザー毎カウンタ |
+| ユーザー API(`[Phase 2: P2-02]`) | 30 req/min/user | Durable Object でユーザー毎カウンタ |
 | 外部 API への発信(Anthropic / Google / LINE) | 各サービスのクォータ準拠 | Queues + 指数バックオフ |
 
 **LLM 呼び出し設計目標(NFR-7「月額 500 円/ユーザー」達成のため)**:
@@ -734,7 +734,7 @@ pub enum UserAction {
 - **PBT 対象**:
   - `OverlapDetector::check`(`proptest` で乱数生成した時間範囲の対称性・推移性)
   - シリアライズ往復(`Case`/`Schedule`/`Entry` の JSON ↔ Rust 型)
-  - CSV エンコード(Phase 2 で復活時)
+  - CSV エンコード(`[Phase 2: P2-08]` 請求 CSV 復活時)
 - **ゴールデンセット**: `tests/fixtures/extraction/` に βテスター由来の匿名化メール 30〜100 件、F1 スコア閾値 0.85 以上
 
 ---
@@ -858,7 +858,7 @@ pub enum UserAction {
 - ✅ 11 ユースケースのコマンド型・Result 型
 - ✅ 7 ステップ別 Queue + DLQ + saga 補償パターン
 - ✅ **15 D1 テーブル**(うち append-only 1: `consents`)のスキーマ + 主要インデックス + マイグレーション順序
-- ✅ Webhook / 管理 API / Phase 2 ユーザー API のエンドポイント仕様
+- ✅ Webhook / 管理 API / ユーザー API(`[Phase 2: P2-02]`)のエンドポイント仕様
 - ✅ U2-EC-04 統合の 4 カテゴリエラー型階層
 
 詳細な業務ロジック・閾値・タイムアウト値・バリデーションは **Functional Design ステージ(per-unit, Construction)** で確定する(§9 で一覧)。

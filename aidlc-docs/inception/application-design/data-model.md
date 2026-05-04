@@ -33,7 +33,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | `classification_rules` | ルールベース分類定義 | I-9 / 管理 API | A-3(全分類イベント) |
 | `cases` | 案件マスタ | A-4 ExtractCase | A-5〜A-9 |
 | `schedules` | 候補スロット(複数日程対応) | A-4 / A-7 | A-5 / A-7 / A-8 |
-| `entries` | エントリー実績 | A-6 / 確定検出 | A-9 / Phase 2 CSV |
+| `entries` | エントリー実績 | A-6 / 確定検出 | A-9 / `[Phase 2: P2-08]` 請求 CSV |
 | `declines` | 辞退送信記録 | A-8 DetectAndDecline | 監査・運用 |
 | `calendar_events` | サービス所有のカレンダーイベント追跡 | A-7 ManageCalendar | A-7(状態更新時) |
 | `pr_corpus` | PR 文学習データ(本人作成、永続) | A-1 / 定期取込 | A-6 ComposeDraft |
@@ -147,7 +147,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 ## 5. `offices` — 事務所マスタ
 
-**目的**: 案件・PR コーパス・辞退コーパスから参照される **事務所の正規化マスタ**。`office_patterns`(抽出パターン詳細)と分離することで、事務所単位の追加メタデータ(連絡先・契約状態等)の Phase 2 拡張を阻害しない。
+**目的**: 案件・PR コーパス・辞退コーパスから参照される **事務所の正規化マスタ**。`office_patterns`(抽出パターン詳細)と分離することで、事務所単位の追加メタデータ(連絡先・契約状態等)の拡張を阻害しない(将来拡張は `[Phase 2: P2-11]` データモデル詳細化で扱う)。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
@@ -221,13 +221,13 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | 案件 ID |
 | `user_id` | TEXT | NOT NULL FK → `users(id)` | 所有者 |
-| `source_message_id` | TEXT | NOT NULL FK → `messages(id)` | **募集メール**(抽出元の起点メール)。決定通知メール等は同一 `gmail_thread_id` 経由で関連付け、Phase 2 で必要なら明示的な `case_messages` 中間表を追加 |
+| `source_message_id` | TEXT | NOT NULL FK → `messages(id)` | **募集メール**(抽出元の起点メール)。決定通知メール等は同一 `gmail_thread_id` 経由で関連付け。1 案件 N メール明示関連付けは `[Phase 2: P2-11]` で `case_messages` 中間表として追加 |
 | `office_id` | TEXT | NULL 可 FK → `offices(id)` ON DELETE SET NULL | 既知事務所への紐付け。NULL は新規事務所(初回出現時に A-4 が `offices` に INSERT して紐付け) |
 | `office_name_snapshot` | TEXT | NOT NULL | 案件抽出時点の事務所名スナップショット(`offices.display_name` が後日変更されても案件記録は当時の名前を保持) |
 | `subject_name` | TEXT | NOT NULL | 案件名(イベント名・収録名等) |
 | `location` | TEXT | NULL 可 | 場所文字列(住所・会場名)。抽出失敗時は NULL + warning |
 | `compensation_text` | TEXT | NULL 可 | 報酬の生表記(例: `"1日 25,000 円(税込)"`、`"応相談"`) |
-| `compensation_amount` | INTEGER | NULL 可 | パース可能な場合の数値(円)。Phase 2 CSV / 集計用 |
+| `compensation_amount` | INTEGER | NULL 可 | パース可能な場合の数値(円)。`[Phase 2: P2-08]` 請求 CSV / `[Phase 2: P2-12]` 税務関連長期保管 / 集計用 |
 | `deadline_at` | TEXT | NULL 可 | エントリー締切(ISO 8601 UTC)。Cron で締切前リマインドに使用 |
 | `pr_required` | INTEGER | NOT NULL DEFAULT 0 | 0/1。U2-EC-03 で抽出時に LLM 判定。1 のとき A-6 が PR 文を Few-shot で生成。**理由**: A-6 ComposeEntryDraft が PR 文 Few-shot を取得するか分岐するために必須。**更新メカニズム**: 抽出時自動判定 + ユーザーが LINE 経由で訂正可(運用 API) |
 | `other_conditions` | TEXT | NULL 可 | 衣装・持ち物・年齢制限など自由記述条件 |
@@ -274,7 +274,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 ## 10. `entries` — エントリー実績
 
-**目的**: 案件にエントリー(下書き作成 → ユーザー送信)した記録。確定後の状態追跡 + Phase 2 の請求 CSV 出力源。
+**目的**: 案件にエントリー(下書き作成 → ユーザー送信)した記録。確定後の状態追跡 + `[Phase 2: P2-08]` 請求 CSV 出力源。
 
 **カーディナリティ**: **1 案件 = 1 active entry**(同時に有効なエントリーは 1 件)。応募取り下げ + 再応募などで履歴が必要な場合は古い行を `status='superseded'` にして新規 INSERT(append-only 履歴)。確定スロット情報は `entries` ではなく `schedules.is_chosen` を参照(複数確定対応のため)。
 
@@ -291,10 +291,10 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 **インデックス**:
 - `idx_entries_case ON entries(case_id)`:案件→エントリー
 - `idx_entries_case_active ON entries(case_id) WHERE status != 'superseded'`:現役エントリー取得(部分インデックス)
-- `idx_entries_status ON entries(status)`:Phase 2 CSV エクスポート用
+- `idx_entries_status ON entries(status)`:`[Phase 2: P2-08]` 請求 CSV エクスポート用
 
 **書き込み**: A-6 ComposeDraft(初回作成)、A-3 / A-7(状態更新)、A-6(取り下げ時に旧 `superseded` 化 + 新 `pending` INSERT)
-**読み取り**: A-9 通知時、Phase 2 CSV エクスポート
+**読み取り**: A-9 通知時、`[Phase 2: P2-08]` 請求 CSV エクスポート
 
 **確定スロットの参照方法**: 「この案件で確定したスロット」を取得する場合は `SELECT * FROM schedules WHERE case_id = ? AND is_chosen = 1` を使う(複数確定対応のため `entries` 側に単一 FK を持たない)。
 
@@ -363,7 +363,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 **取り込み期間制限**(MVP): **直近 24 ヶ月** の Sent メールに限定。理由:
 - MC 歴 10 年以上のユーザーは Sent に数千件あり、全件取り込みは ① D1 容量 ② オンボーディング時間 ③ 文体の経時変化(古い例ほど現在の文体と乖離) の観点で不適切
 - 直近 24 ヶ月で 1 ユーザー最大 ~500 行(月 20 件 × 24 ヶ月)、Few-shot として十分かつ D1 容量も問題なし
-- Phase 2 で **ユーザー設定で期間変更可**(全期間 / 直近 12ヶ月 / 直近 24ヶ月 等)、古いコーパスは **R2 にアーカイブ** して必要時に取り出す方式に拡張可能
+- ユーザー設定での期間変更 + 24ヶ月超のコーパスを R2 にアーカイブ する拡張は `[Phase 2: P2-10]` コーパス取り込み拡張 で扱う
 
 **Few-shot 採用方針**(L345 ご指摘反映): エントリーメール本文を **そのまま Few-shot 例**として A-6 に渡し、**PR 要素の有無は LLM(Claude Haiku)が現在の案件メールを読んで判定**する。事前に `case_kind` を分類しておく代わりに、選定アルゴリズム(`office_id` 一致 + 直近性)で関連例を 3〜5 件取り出し、Haiku に「この案件には PR が必要か?」「どの過去メールの文体に寄せるか?」を任せる。これにより `case_kind` 自動分類の不正確さを排除し、LLM 推論で柔軟に対応する。
 
@@ -392,7 +392,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 **`pr_corpus` との粒度差**: 辞退文は案件種別による文体差が小さく、汎用的な「失礼ながら…」パターンに収束するため `case_kind` 列を持たない。
 
-**取り込み期間制限**(MVP): `pr_corpus` と同様、**直近 24 ヶ月** の Sent メール(キーワード「辞退」「失礼ながら」「お見送り」等で抽出)に限定。長期ユーザーのレコード爆発防止 + 古い文体例の混入回避。Phase 2 で期間設定をユーザー選択可 + R2 アーカイブ拡張。
+**取り込み期間制限**(MVP): `pr_corpus` と同様、**直近 24 ヶ月** の Sent メール(キーワード「辞退」「失礼ながら」「お見送り」等で抽出)に限定。長期ユーザーのレコード爆発防止 + 古い文体例の混入回避。期間設定のユーザー選択化 + R2 アーカイブは `[Phase 2: P2-10]`。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
@@ -438,7 +438,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 **書き込み**: 全ユースケース(成功・失敗の両方)、F-06 Logger 経由
 **読み取り**: 運用(障害解析)、F-14 メトリクス集計、コンプライアンス監査
 
-**保管ポリシー**: D1 で 12 ヶ月、超過分は Cron で **R2 にエクスポート**(月次 NDJSON or Parquet 圧縮)→ D1 から削除。R2 上の保管期間はライフサイクルポリシーで管理(MVP では永続、必要に応じて Phase 2 で年数指定)。詳細は §18。
+**保管ポリシー**: D1 で 12 ヶ月、超過分は Cron で **R2 にエクスポート**(月次 NDJSON or Parquet 圧縮)→ D1 から削除。R2 上の保管期間は MVP では永続(必要に応じて `[Phase 2: P2-09]` で法令変更時のライフサイクル設定を追加)。詳細は §18。
 
 ---
 
@@ -482,7 +482,7 @@ erDiagram
 ### 17.1 削除リクエスト経路
 
 - LINE Bot のメニュー → 「アカウント削除」を選択 → 確認画面 → ユーザーが最終確認 → A-11 `DeleteUserUseCase` 起動
-- Phase 2: サービスサポート窓口経由(管理 API + 本人確認)
+- 拡張: サービスサポート窓口経由(管理 API + 本人確認)は `[Phase 2: P2-09]` で扱う
 
 ### 17.2 削除処理の手順(saga 順序)
 
@@ -512,7 +512,7 @@ erDiagram
 | `pr_corpus` | **物理削除** | 本人作成データ。**削除請求権の対象**(永続保管はサービス継続中のみ前提) |
 | `decline_corpus` | **物理削除** | 同上 |
 | `classification_rules` | **物理削除**(`scope='user'` のみ) | global ルールは対象外(個人情報なし) |
-| `audit_logs` | **匿名化保持**(D1 + R2 アーカイブ) | `user_id = NULL` に UPDATE。`actor` / `target_id` / `payload_json` のフィールドはそのまま(セキュリティ監査・障害解析のため)。D1 12 ヶ月経過分は R2 にアーカイブされ続けるが、**匿名化済みなので個人特定不可**。R2 アーカイブの保管期間は MVP では永続(必要に応じて Phase 2 でライフサイクル設定) |
+| `audit_logs` | **匿名化保持**(D1 + R2 アーカイブ) | `user_id = NULL` に UPDATE。`actor` / `target_id` / `payload_json` のフィールドはそのまま(セキュリティ監査・障害解析のため)。D1 12 ヶ月経過分は R2 にアーカイブされ続けるが、**匿名化済みなので個人特定不可**。R2 アーカイブの保管期間は MVP では永続(法令変更時のライフサイクル設定は `[Phase 2: P2-09]`) |
 | `offices` | **削除しない** | 共有マスタ。個人情報を含まない |
 | `office_patterns` | **削除しない** | 共有マスタ。個人情報を含まない |
 
@@ -530,11 +530,16 @@ erDiagram
 - 24 時間を超える場合は運用者が手動対応 + 遅延通知(F-08 メッセージング規約準拠)
 - LINE 友だち解除自体はユーザー側操作(LINE プラットフォーム制約)
 
-### 17.6 Phase 2 拡張予定
+### 17.6 拡張予定(Phase 2)
+
+本セクションの拡張は `[Phase 2: P2-09]` アカウントデータ管理拡張(stories.md)に集約:
 
 - 削除前のデータエクスポート機能(`pr_corpus` / `decline_corpus` / 過去 `entries` を CSV ダウンロード)
 - グレースピリオド(7 日以内なら復元可能、ソフトデリート扱い)
-- マルチテナント対応時の事業者単位の一括削除
+- R2 アーカイブのライフサイクル設定(法令変更時の保管期限短縮)
+- R2 上の `audit_logs` アーカイブ NDJSON 内 `user_id` の月次匿名化 Cron
+
+マルチテナント対応時の事業者単位の一括削除は `[Phase 2: P2-01]` マルチテナント認証 のスコープ。
 
 ### 17.7 関連コンポーネント
 
@@ -553,8 +558,8 @@ erDiagram
 |-----------|---------|--------|------------|
 | メール本文(原文) | 30 日 | **R2**(`raw_blob_key`)、`messages.raw_expires_at` で管理 | R2 オブジェクトライフサイクルで自動削除 |
 | 構造化抽出データ | 24 ヶ月 | D1(`messages` / `cases` / `schedules` / `entries` / `declines` / `calendar_events`) | D1 から物理削除(R2 アーカイブなし) |
-| PR 文(エントリーメール)学習データ | 取り込み窓: 直近 24 ヶ月 / 取り込み後は永続 | D1 `pr_corpus` | (削除なし。Phase 2 でユーザー設定可 + R2 アーカイブ) |
-| 辞退文学習データ | 取り込み窓: 直近 24 ヶ月 / 取り込み後は永続 | D1 `decline_corpus` | (削除なし。Phase 2 でユーザー設定可 + R2 アーカイブ) |
+| PR 文(エントリーメール)学習データ | 取り込み窓: 直近 24 ヶ月 / 取り込み後は永続 | D1 `pr_corpus` | (削除なし。`[Phase 2: P2-10]` でユーザー設定可 + R2 アーカイブ) |
+| 辞退文学習データ | 取り込み窓: 直近 24 ヶ月 / 取り込み後は永続 | D1 `decline_corpus` | (削除なし。`[Phase 2: P2-10]` でユーザー設定可 + R2 アーカイブ) |
 | 同意履歴 | 永続(append-only) | D1 `consents` | (削除なし) |
 | 監査ログ | D1 12 ヶ月 → **R2 アーカイブ(永続)** | D1 `audit_logs` → R2 `archives/audit/{yyyy-mm}.ndjson.gz` | Cron で月次 NDJSON エクスポート + gzip → R2 → D1 から削除。R2 ライフサイクルは MVP で永続 |
 | OAuth トークン | ユーザー在籍期間中 | D1 `oauth_tokens`(暗号化) | 退会時に削除 |
@@ -566,21 +571,26 @@ erDiagram
 
 **R2 上のコスト見積り**(参考): 監査ログは 1 ユーザー × 100 events/日 × 12 ヶ月超 ≒ 36,500 行/年 → gzip 圧縮後 ~5 MB/年。1,000 ユーザー × 5 MB = 5 GB/年(無料枠 10 GB 内)で、NFR-7 への影響は無視できる。
 
-**Phase 2 で再検討する項目**:
-- 請求 CSV / 税務関連の長期保管(R2 アーカイブ + ユーザー主導エクスポート)
-- audit_logs R2 アーカイブの保管期限(法令変更等で必要に応じて設定)
+**拡張予定**: 詳細は §19 と stories.md `Phase 2 Epic` 参照(本ドキュメントではインライン詳述しない方針)。
 
 ---
 
 ## 19. 今後の拡張(Phase 2 以降の追加候補)
 
-| テーブル | 用途 | 追加タイミング |
-|---------|------|----------------|
-| `tenants` | マルチテナント識別 | P2-01 マルチテナント認証 |
-| `subscriptions` | Stripe 課金管理 | P2-03 課金システム |
-| `webhook_outbox` | 信頼性向上のための Outbox パターン | スケール拡大時 |
-| `mail_provider_accounts` | Outlook / IMAP 等の追加メール連携 | P2-05 |
-| `calendar_provider_accounts` | Apple Calendar / Outlook Calendar 連携 | P2-06 |
+本セクションは **stories.md `Phase 2 Epic` の P2-NN ID と双方向リンクされたテーブル追加の予告** のみを記述する。**新規拡張要件はすべて stories.md の P2-NN として登録**(本ドキュメントへインライン詳述しない、P2 管理規約: `id-index.md §6`)。
+
+| テーブル / 機能 | 用途 | 紐付く Story |
+|---------|------|------|
+| `tenants` | マルチテナント識別 | `[Phase 2: P2-01]` マルチテナント認証 |
+| `subscriptions` | Stripe 課金管理 | `[Phase 2: P2-03]` 課金システム |
+| `mail_provider_accounts` | Outlook / IMAP 等の追加メール連携 | `[Phase 2: P2-05]` Gmail 以外のメール対応 |
+| `calendar_provider_accounts` | Apple Calendar / Outlook Calendar 連携 | `[Phase 2: P2-06]` Google Calendar 以外対応 |
+| `case_messages` 中間表 | 1 案件 N メール明示関連付け(決定通知メール等) | `[Phase 2: P2-11]` データモデル詳細化 |
+| `pattern_revisions` | `office_patterns.pattern_data` 更新後の成功率追跡 | `[Phase 2: P2-11]` データモデル詳細化 |
+| 請求関連の R2 アーカイブ | 税務上 5〜7 年の長期保管 | `[Phase 2: P2-08]` 請求 CSV + `[Phase 2: P2-12]` 税務関連長期保管 |
+| ソフトデリート用 `users.deleted_at` | 7 日グレースピリオド | `[Phase 2: P2-09]` アカウントデータ管理拡張 |
+| コーパス R2 アーカイブ用パス | 24 ヶ月超のコーパスを R2 に逃がす | `[Phase 2: P2-10]` コーパス取り込み拡張 |
+| `webhook_outbox` | 信頼性向上のための Outbox パターン | スケール拡大時(未紐付け、必要時に Story 化) |
 
 各 Phase 2 拡張は既存テーブルに対して破壊的変更を起こさないよう、**新テーブルの追加 + 既存への optional FK 追加** を基本方針とする。
 
