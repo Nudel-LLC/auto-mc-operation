@@ -454,3 +454,23 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Review Round 1 反映完了、再承認待ち)
 
 ---
+
+## Application Design — data-model.md 新規作成
+**Timestamp**: 2026-05-03T02:30:00Z
+**User Input**: 「主要テーブル定義で、どのカラムを何目的で利用するのか、わかりませんでした。テーブル定義用のドキュメントを作成し、そこに詳細に記述してください」
+**AI Response**:
+- `aidlc-docs/inception/application-design/data-model.md` を新規作成
+- 全 14 テーブル(users / oauth_tokens / consents / messages / office_patterns / classification_rules / cases / schedules / entries / declines / calendar_events / pr_corpus / decline_corpus / audit_logs)について以下を網羅:
+  - 各カラムの目的・用途・型・制約
+  - 各テーブルの主用途と所有ユースケース(主な書き込み / 読み取り)
+  - インデックスとその根拠
+  - 外部キーと削除カスケード方針
+  - データ保存方針(NFR-5 準拠)を表形式で明記
+  - 退会時の挙動・Cron アーカイブジョブ
+  - Phase 2 以降の拡張候補テーブル
+- ER 図(削除カスケード視点)を Mermaid で追加
+- application-design.md Section 3 冒頭に data-model.md への参照を追加
+- application-design.md Section 7.1 レビュー反映履歴に「追加要望: テーブル定義の用途明確化」を記録
+**Context**: INCEPTION - Application Design (Detailed data-model documentation created)
+
+---

@@ -110,6 +110,8 @@ flowchart LR
 
 Q5 = B により全列 + 制約 + 主要 IDX + マイグレーション順序を明記。
 
+> **📘 詳細リファレンス**: 本セクションは ER 図と DDL のみを掲載。**各カラムの目的・用途・どのユースケースが読み書きするか・データ保存方針** の詳細は **`data-model.md`** を参照。新規参画者・実装者はまず `data-model.md` を読むことを推奨。
+
 ### 3.1 ER 図
 
 ```mermaid
@@ -513,6 +515,7 @@ pub enum UserAction {
 
 | 項目 | 対応 |
 |------|------|
+| **追加要望**: 主要テーブル定義の用途が不明 | `data-model.md` を新規作成し、14 テーブルの全カラムについて **目的・用途・読み書きユースケース・データ保存方針** を網羅(本ドキュメント Section 3 から詳細を移管) |
 | **C1**: A-3(decision)流れ先 3 説 | `services.md` で `notify_queue` + `calendar_queue` の **両 enqueue 方針** に統一、シーケンス図と Queue 構成表を一致 |
 | **C2**: 存在しない F-15 参照 | `components.md` の F-15 → F-13 に修正 |
 | **C3**: A-10 RotateGmailWatch 設計片手落ち | `component-methods.md` にシグネチャ追加、`component-dependency.md` 依存マトリクスに行追加、`services.md` に Cron 起動シーケンス追加 |
