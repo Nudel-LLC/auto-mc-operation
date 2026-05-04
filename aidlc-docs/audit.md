@@ -607,3 +607,21 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (data-model.md 18 件 review 対応)
 
 ---
+
+## Application Design — ユーザー削除請求への対応を data-model.md に明文化
+**Timestamp**: 2026-05-04T17:30:00Z
+**User Input**: ユーザーが自身のアカウント削除を希望した時の削除するデータを明確にしてください。
+**AI Response**:
+- data-model.md §17 を新規追加: 「ユーザーアカウント削除請求への対応」
+  - §17.1 削除リクエスト経路(LINE Bot メニュー / Phase 2 サポート窓口)
+  - §17.2 削除処理の手順(saga 7 ステップ: OAuth revoke / Watch 解除 / Calendar イベント削除 / Queue 打ち切り / R2 削除 / D1 削除 / LINE 最終通知)
+  - §17.3 D1 テーブル別の削除処理(15 テーブル × 物理削除/匿名化保持/削除しない の判定表)
+  - §17.4 匿名化保持の根拠(consents / audit_logs について個情法・電気通信事業法・F-06 監査要件との整合)
+  - §17.5 削除 SLA(24 時間以内 / NFR-5 準拠)
+  - §17.6 Phase 2 拡張予定(エクスポート機能 / グレースピリオド)
+  - §17.7 関連コンポーネント A-11 DeleteUserUseCase(将来追加候補として明記)
+- §16 ER 図の consents 関係を「削除時は user_id 匿名化」に更新
+- 既存の §16 末尾「ユーザー削除時の挙動」短文を §17 への参照に置換、§18 / §19 へ番号繰り下げ
+**Context**: INCEPTION - Application Design (ユーザー削除請求対応の仕様明文化)
+
+---
