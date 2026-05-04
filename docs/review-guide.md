@@ -19,7 +19,7 @@
 | [AI-Generated Code Vulnerabilities - Vidoc Security Lab](https://blog.vidocsecurity.com/blog/vibe-coding-security-vulnerabilities) | SQLi・XSS・認証不備など 9 種の具体的脆弱性 |
 | [AI Code Review Best Practices - Graphite](https://graphite.com/guides/ai-code-review-implementation-best-practices) | AI 開発フロー向けレビュー実装指針 |
 | [Establishing Standards for AI-Generated Code - MetaCTO](https://www.metacto.com/blogs/establishing-code-review-standards-for-ai-generated-code) | AI 生成コード専用のレビュー基準 |
-| プロジェクト内検出事例(PR #3 / `docs/review-rule-improvements.md`) | 設計ドキュメント特有のハルシネーション検出パターン・段階間整合性視点 |
+| プロジェクト内検出事例(PR #3 Application Design レビュー) | 設計ドキュメント特有のハルシネーション検出パターン・段階間整合性視点 |
 
 ---
 
@@ -371,8 +371,7 @@ AI 生成コード特有のリスクを含むセキュリティ脆弱性を確�
     └── review.md   # /review コマンドの定義(Claudeへの指示)
 
 docs/
-├── review-guide.md            # このドキュメント(使い方ガイド)
-└── review-rule-improvements.md # ルール改善履歴
+└── review-guide.md            # このドキュメント(使い方ガイド)
 
 .github/
 ├── pull_request_template.md          # デフォルト PR テンプレート(PR 種別選択あり)
