@@ -175,7 +175,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 |--------|------|------|-----------|
 | `office_id` | TEXT | PK / FK → `offices(id)` ON DELETE CASCADE | 親事務所(1 office = 1 pattern) |
 | `pattern_data` | TEXT | NOT NULL | JSON 文字列。サンプルレイアウト・特徴的キーワード・抽出済みフィールドの統計 |
-| `success_count` | INTEGER | NOT NULL DEFAULT 0 | **永続累積カウンタ**(成功件数のみ累積、母数なし)。この事務所からのメールで抽出成功した件数。**用途は同一事務所内に閉じる**: 該当事務所のメール処理時に「自分の `office_patterns.pattern_data` を Few-shot として LLM プロンプトに含めるか」の **閾値判定**(例: `success_count >= 3` で初めて Few-shot 採用、それ未満は汎用テンプレートのみ使用 — 不確実なパターンの伝播を防ぐ)に使う。**別事務所のパターンを当てはめる用途ではない**(office_patterns は office_id PK の 1 対 1、各事務所書式は独立)。**正確な成功率(成功 ÷ 試行)の測定は意図しない** — 試行回数を含む正確な成功率測定や、リビジョン別成否追跡は `[Phase 2: P2-11]` の `pattern_revisions` 履歴テーブルで扱う |
+| `success_count` | INTEGER | NOT NULL DEFAULT 0 | **観測・統計用の永続累積カウンタ**(成功件数のみ累積、母数なし)。この事務所からのメールで抽出成功した件数。**用途は運用上の観察のみ**: βテスト後の運用評価で「この事務所からの抽出が安定しているか」を見る統計指標。**Few-shot 採用判定には使わない**(`success_count >= N` の閾値では `0` 件の事務所が永遠に Few-shot 不採用 → success_count 増えず利用されない、というデッドロックが発生するため)。**Few-shot 採用判定は `pattern_data IS NOT NULL` の存在チェックのみ**(初回抽出成功後に pattern_data が作成され、以降は常に Few-shot 候補)で行う。**正確な成功率(成功 ÷ 試行)の測定** や、リビジョン別成否追跡が必要になった場合は `[Phase 2: P2-11]` の `pattern_revisions` 履歴テーブルで `attempt_count` も含めて扱う(MVP では未実装) |
 | `last_seen_at` | TEXT | NULL 可 | 最終受信時刻。古いパターンの整理に使用 |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
@@ -477,7 +477,6 @@ erDiagram
     cases ||--|{ schedules : "1対多 / CASCADE"
     cases ||--|| entries : "1対1 active / case_id CASCADE (履歴は superseded)"
     cases ||--|| declines : "1対1 active / case_id CASCADE (履歴は superseded)"
-    cases ||--o{ declines : "triggered_by_case 経由 (kind=case 時のみ / SET NULL on origin delete)"
     cases ||--o{ calendar_events : "1対多"
 
     messages ||--o| cases : "source_message_id (募集メール)"

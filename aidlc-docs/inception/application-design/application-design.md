@@ -307,7 +307,6 @@ erDiagram
     cases ||--|{ schedules : "候補スロット"
     cases ||--|| entries : "エントリー (1対1 active / case_id CASCADE)"
     cases ||--|| declines : "辞退 (1対1 active / case_id CASCADE)"
-    cases ||--o{ declines : "triggered_by_case 経由 (kind=case 時のみ / SET NULL)"
     cases ||--o| calendar_events : "仮/確定登録"
 
     messages ||--o| cases : "抽出元(募集メール)"

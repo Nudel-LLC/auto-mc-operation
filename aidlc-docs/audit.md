@@ -774,3 +774,13 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (ユーザー Round 7 追加質問対応)
 
 ---
+
+## INCEPTION - Application Design (ユーザー追加 Q&A 2 件への対応 / Round 7-2)
+**Timestamp**: 2026-05-04T22:30:00Z
+**User Input**: "コメントを返しました。確認をお願いします。"
+**AI Response**: ユーザーが私の Round 7 返信に対して 2 件の追加質問を投稿していたため対応:
+  - Q5 (L177 success_count): 「success_count >= 3 閾値だと 0 の事務所は永遠に Few-shot 不採用 → success_count 増えず → デッドロック」「観測用なら成功率で評価すべき」のご指摘を受け、`office_patterns.success_count` の用途を「観測・統計用」に変更、Few-shot 採用判定は「`pattern_data IS NOT NULL` の存在チェックのみ」(初回抽出成功後に常に Few-shot 候補)に修正。正確な成功率測定は P2-11 の `pattern_revisions` で扱う旨を明記
+  - Q6 (L468 ER 図): 「`cases ||--o{ declines : triggered_by_case 経由` 行は削除しても整合性に問題ないのでは?」のご指摘を受け、ER 図(`data-model.md` §15 / `application-design.md` §3.1)から該当行を削除。`triggered_by_case` の参照関係は `declines` テーブルのカラム説明(§11)で言及済のため情報損失なし
+**Context**: INCEPTION - Application Design (Round 7 後続 Q&A 対応)
+
+---
