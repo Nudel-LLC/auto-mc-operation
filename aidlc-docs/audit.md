@@ -762,3 +762,15 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Round 7 AI review reflection、PR 分割は除外)
 
 ---
+
+## INCEPTION - Application Design (ユーザー追加 Q&A 4 件への対応)
+**Timestamp**: 2026-05-04T22:00:00Z
+**User Input**: "コメントありがとうございました。納得いったものはresolveしました。コメント返信したものに対して、内容を確認してください。"
+**AI Response**: ユーザーが Round 6 の 21 件返信のうち 4 件で追加質問・指示を投稿していたことを確認、対応:
+  - Q1 (L468 declines): entries の case_id にも `ON DELETE CASCADE` を追加(declines と同方針)、ER 図の `cases ↔ declines` 表記を整理(`triggered_by_case 経由` を明示)、application-design.md DDL も同期
+  - Q2 (L195 classification_rules.scope): ユーザー個別ルール UI を P2-02 に明示吸収、stories.md P2-02 概要に「③ ユーザー個別の分類ルール設定 UI」を追加、data-model.md §7 の「専用 P2-NN として今後切り出し」表現を削除
+  - Q3 (L177 office_patterns.success_count): 「累積成功件数が多い事務所のパターンを優先採用」表現を削除、用途を「同一事務所内に閉じる Few-shot 採用閾値判定」に明確化、別事務所のパターンは当てはめない旨を明記
+  - Q4 (L99 consents append-only): data-model.md §3 トリガー説明文を「user_id を NULL 化する UPDATE のみ許可、それ以外は ABORT」に修正、application-design.md DDL のトリガー WHEN 条件も `user_id` / `ip_hash` の NULL 化のみ許可するロジックに正しく修正(以前の条件は user_id NOT NULL で常に ABORT する誤り)
+**Context**: INCEPTION - Application Design (ユーザー Round 7 追加質問対応)
+
+---

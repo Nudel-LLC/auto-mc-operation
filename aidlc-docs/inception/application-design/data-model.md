@@ -106,9 +106,9 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 **インデックス**:
 - `idx_consents_user ON consents(user_id, agreed_at)`:同意履歴の時系列取得
 
-**append-only 強制**(W7 反映):
-- `CREATE TRIGGER trg_consents_no_update BEFORE UPDATE ... RAISE(ABORT, ...)` で UPDATE を禁止
-- `CREATE TRIGGER trg_consents_no_delete BEFORE DELETE ... RAISE(ABORT, ...)` で DELETE を禁止
+**append-only 強制**(W7 反映、§17.3 アカウント削除と整合):
+- `CREATE TRIGGER trg_consents_no_update BEFORE UPDATE ... WHEN <user_id NULL 化以外の変更>` で **`user_id` を NULL 化する UPDATE のみ許可**(削除請求時の匿名化)、それ以外の列(`version` / `agreed_at` / `ip_hash` / `created_at`)を書き換える UPDATE は `RAISE(ABORT, ...)`
+- `CREATE TRIGGER trg_consents_no_delete BEFORE DELETE ... RAISE(ABORT, ...)` で DELETE を禁止(物理削除は不可、同意イベント証跡を必ず残す)
 
 **書き込み**: A-1 OnboardUser(初回 + 再同意時、INSERT のみ)
 **読み取り**: A-2 IngestMail(処理開始時の同意確認)、運用(コンプライアンス監査)
@@ -175,7 +175,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 |--------|------|------|-----------|
 | `office_id` | TEXT | PK / FK → `offices(id)` ON DELETE CASCADE | 親事務所(1 office = 1 pattern) |
 | `pattern_data` | TEXT | NOT NULL | JSON 文字列。サンプルレイアウト・特徴的キーワード・抽出済みフィールドの統計 |
-| `success_count` | INTEGER | NOT NULL DEFAULT 0 | **永続累積カウンタ**(成功件数のみ累積、母数なし)。この事務所からのメールで抽出成功した件数。**Few-shot 採用優先度の参考**(累積成功件数が多い事務所のパターンを優先採用)に使用するためで、**正確な成功率(成功 ÷ 試行)の測定は意図しない**。試行回数を含む正確な成功率測定は `[Phase 2: P2-11]` の `pattern_revisions` 履歴テーブルで扱う |
+| `success_count` | INTEGER | NOT NULL DEFAULT 0 | **永続累積カウンタ**(成功件数のみ累積、母数なし)。この事務所からのメールで抽出成功した件数。**用途は同一事務所内に閉じる**: 該当事務所のメール処理時に「自分の `office_patterns.pattern_data` を Few-shot として LLM プロンプトに含めるか」の **閾値判定**(例: `success_count >= 3` で初めて Few-shot 採用、それ未満は汎用テンプレートのみ使用 — 不確実なパターンの伝播を防ぐ)に使う。**別事務所のパターンを当てはめる用途ではない**(office_patterns は office_id PK の 1 対 1、各事務所書式は独立)。**正確な成功率(成功 ÷ 試行)の測定は意図しない** — 試行回数を含む正確な成功率測定や、リビジョン別成否追跡は `[Phase 2: P2-11]` の `pattern_revisions` 履歴テーブルで扱う |
 | `last_seen_at` | TEXT | NULL 可 | 最終受信時刻。古いパターンの整理に使用 |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
@@ -193,7 +193,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | ルール ID |
-| `scope` | TEXT | NOT NULL | `'global'`(全ユーザー共通)or `'user'`(ユーザー個別)。**ユーザー個別ルールの想定ユースケース**: 特定の個人事務所のドメインだけ強制的にスキップ / 特定キーワードを含むメールを優先分類 等の運用調整。**MVP では運用者が管理 API 経由で投入のみ**(該当 Story なし、F-08 メッセージング規約延長の運用作業)。**ユーザー自身が LINE / Web から個別ルールを設定可能にする機能は `[Phase 2: P2-02]` Web ダッシュボード**(または専用 P2-NN として今後切り出し)で扱う |
+| `scope` | TEXT | NOT NULL | `'global'`(全ユーザー共通)or `'user'`(ユーザー個別)。**ユーザー個別ルールの想定ユースケース**: 特定の個人事務所のドメインだけ強制的にスキップ / 特定キーワードを含むメールを優先分類 等の運用調整。**MVP では運用者が管理 API 経由で投入のみ**(該当 Story なし、F-08 メッセージング規約延長の運用作業)。**ユーザー自身が LIFF / Web から個別ルールを登録・編集・有効/無効切替する UI は `[Phase 2: P2-02]` Web ダッシュボードに吸収済**(`stories.md` P2-02 概要 ③ 参照) |
 | `user_id` | TEXT | NULL 可 FK → `users(id)` | `scope='user'` のときのみ NOT NULL |
 | `sender_domain_pattern` | TEXT | NULL 可 | 正規表現または完全一致のパターン |
 | `subject_keywords_json` | TEXT | NULL 可 | JSON 配列。`["募集"]` 等。AND マッチ |
@@ -283,7 +283,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | エントリー ID |
-| `case_id` | TEXT | NOT NULL FK → `cases(id)` | 対象案件 |
+| `case_id` | TEXT | NOT NULL FK → `cases(id)` ON DELETE CASCADE | 対象案件。case 削除時に連動削除(`declines` と同方針) |
 | `draft_id` | TEXT | NULL 可 | **エントリーメールの** Gmail Draft ID(辞退下書きは `declines.decline_draft` 側で別途管理)。送信前のステータス確認に使用 |
 | `submitted_at` | TEXT | NULL 可 | ユーザーが Gmail から実送信した時刻のヒューリスティック推定。**検知方法**: Cron(時/日次)で Gmail Sent フォルダを `gmail_thread_id` または `In-Reply-To` ヘッダで照合し、本サービス作成 draft 由来のメッセージが Sent に存在すれば「送信された」と判定して送信時刻を記録。ユーザーが draft を編集してから送ることもあるため正確性は保証されない(運用統計用、`status='submitted'` への遷移に使用) |
 | `pr_used` | INTEGER | NOT NULL DEFAULT 0 | 0/1。PR 文を含めたかどうか(運用統計用) |
@@ -475,9 +475,9 @@ erDiagram
     offices ||--o{ decline_corpus : "office_id / SET NULL"
 
     cases ||--|{ schedules : "1対多 / CASCADE"
-    cases ||--|| entries : "1対1 active (履歴は superseded)"
-    cases ||--|| declines : "1対1 active (履歴は superseded) / CASCADE"
-    cases ||--o{ declines : "0対多 (triggered_by_case, kind=case 時のみ / SET NULL on origin delete)"
+    cases ||--|| entries : "1対1 active / case_id CASCADE (履歴は superseded)"
+    cases ||--|| declines : "1対1 active / case_id CASCADE (履歴は superseded)"
+    cases ||--o{ declines : "triggered_by_case 経由 (kind=case 時のみ / SET NULL on origin delete)"
     cases ||--o{ calendar_events : "1対多"
 
     messages ||--o| cases : "source_message_id (募集メール)"

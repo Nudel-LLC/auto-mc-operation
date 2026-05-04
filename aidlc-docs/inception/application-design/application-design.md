@@ -305,8 +305,9 @@ erDiagram
     users ||--|| oauth_tokens : "保有"
 
     cases ||--|{ schedules : "候補スロット"
-    cases ||--|| entries : "エントリー (1対1 active)"
-    cases ||--o{ declines : "辞退"
+    cases ||--|| entries : "エントリー (1対1 active / case_id CASCADE)"
+    cases ||--|| declines : "辞退 (1対1 active / case_id CASCADE)"
+    cases ||--o{ declines : "triggered_by_case 経由 (kind=case 時のみ / SET NULL)"
     cases ||--o| calendar_events : "仮/確定登録"
 
     messages ||--o| cases : "抽出元(募集メール)"
@@ -381,10 +382,18 @@ CREATE TABLE consents (
 CREATE INDEX idx_consents_user ON consents(user_id, agreed_at);
 
 -- append-only を機械的に保証するトリガー(NFR-4 SECURITY-11 監査要件)
--- 例外: アカウント削除請求時の user_id 匿名化のみ許可(§17.3)
+-- 例外: アカウント削除請求時の user_id / ip_hash 匿名化(NULL 化)のみ許可(§17.3 / data-model.md §17.3)
+-- それ以外の列変更・別値への変更・NULL からの復元はすべて拒否
 CREATE TRIGGER trg_consents_no_update BEFORE UPDATE ON consents
-WHEN NEW.user_id IS NOT NULL OR OLD.id != NEW.id OR OLD.version != NEW.version OR OLD.agreed_at != NEW.agreed_at
-BEGIN SELECT RAISE(ABORT, 'consents is append-only (only user_id anonymization allowed)'); END;
+WHEN NOT (
+    OLD.id = NEW.id
+    AND OLD.version = NEW.version
+    AND OLD.agreed_at = NEW.agreed_at
+    AND OLD.created_at = NEW.created_at
+    AND (NEW.user_id IS NULL OR NEW.user_id = OLD.user_id)
+    AND (NEW.ip_hash IS NULL OR NEW.ip_hash = OLD.ip_hash)
+)
+BEGIN SELECT RAISE(ABORT, 'consents is append-only (only user_id / ip_hash NULL anonymization allowed)'); END;
 CREATE TRIGGER trg_consents_no_delete BEFORE DELETE ON consents
 BEGIN SELECT RAISE(ABORT, 'consents is append-only'); END;
 
@@ -491,7 +500,7 @@ CREATE INDEX idx_schedules_time ON schedules(start_at, end_at);
 -- 0005 entries (1 case = 1 active entry; 履歴は status='superseded' で append)
 CREATE TABLE entries (
     id TEXT PRIMARY KEY,
-    case_id TEXT NOT NULL REFERENCES cases(id),
+    case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,  -- case 削除時に連動削除(declines と同方針)
     draft_id TEXT,                           -- Gmail draft id (エントリーメール下書き)
     submitted_at TEXT,                       -- ユーザー送信時刻のヒューリスティック推定(Cron で Sent 照合)
     pr_used INTEGER NOT NULL DEFAULT 0,

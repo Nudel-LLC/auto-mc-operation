@@ -1847,7 +1847,7 @@ Q5 = B により Phase 2 はタイトルと概要のみ記述する。詳細化�
 | ID | タイトル | 概要 |
 |----|---------|------|
 | ~~**P2-01**~~ | ~~マルチテナント認証~~(**取り下げ済み**) | **本サービスのコンセプト「個人 MC の応募業務を自動化」は個人課金が自然なため、事業者向けマルチテナント機能は取り下げ。** 個人ユーザーが複数 LINE アカウントで使い分ける用途も想定外として除外。番号は欠番として保持(id-index.md §2 「番号の意味は永久不変」ルール準拠) |
-| **P2-02** | Web ダッシュボード(実績登録 UI) | Foundation Epic の MVP では UI なし方針だが、Phase 2 で実績登録・案件一覧・設定変更の最小 Web UI を追加(`leptos` / `yew` または React) |
+| **P2-02** | Web ダッシュボード(実績登録 UI / 設定変更 UI) | Foundation Epic の MVP では UI なし方針だが、Phase 2 で最小 Web UI を追加(`leptos` / `yew` または React)。実装範囲: ① 実績登録 UI、② 案件一覧・履歴閲覧、③ **ユーザー個別の分類ルール設定 UI**(MVP では運用者が管理 API 経由で `classification_rules.scope='user'` を投入する内部機能のみだが、Phase 2 でユーザー自身が LIFF / Web から登録・編集・有効/無効切替できる UI を提供)、④ travel_buffer_minutes / 通知時刻帯 等のユーザー設定変更画面、⑤ アカウント削除リクエスト UI(`[Phase 2: P2-04]` 二要素確認との連動) |
 | **P2-03** | 課金システム | Stripe Subscription による月額 500 円課金、無料トライアル、解約フロー |
 | **P2-04** | Cloud Run / Cloud SQL 移行 | スケール上限到達時、Cloudflare → GCP に段階的移行(Drizzle / sqlx スキーマ互換、データ移行スクリプト) |
 | **P2-05** | Gmail 以外のメール対応 | Outlook / iCloud / IMAP 連携。アダプタ層を抽象化 |
