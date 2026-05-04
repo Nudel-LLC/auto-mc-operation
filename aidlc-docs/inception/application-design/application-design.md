@@ -375,7 +375,6 @@ CREATE TABLE consents (
     version TEXT NOT NULL,
     agreed_at TEXT NOT NULL,
     ip_hash TEXT,                            -- 状況証拠 / 否認防止用(SHA-256、生 IP は保存しない)
-    user_agent_hash TEXT,                    -- 集約 Bot 検出(F-14 監視で異なる user_id × 同 UA を検知)・否認防止の補助情報。SHA-256、生 UA は保存しない。詳細用途は data-model.md §3 を参照
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_consents_user ON consents(user_id, agreed_at);

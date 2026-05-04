@@ -555,3 +555,20 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Review Round 2 反映完了 + PR 説明欄リフレッシュ)
 
 ---
+
+## consents.user_agent_hash 削除(対話レビュー)
+**Timestamp**: 2026-05-04T10:00:00Z
+**User Input**: 「削除でお願いします」(consents テーブルの user_agent_hash カラム)
+**Discussion 経緯**:
+- ユーザーから user_agent_hash の用途を質問
+- 私の初回回答に「短時間に異なる UA から連続同意 → 乗っ取り検出」と記述
+- ユーザーから「append-only で 1 ユーザー数件しか挿入されないテーブルなので、その不正は発生し得ない」との鋭い指摘
+- 私が用途を 3 つ(集約 Bot 検出 / 否認防止補助 / 再同意時の環境差分)に正確化(commit f20b17e)
+- 結論として実用価値が薄いと判断、ユーザーが削除を選択
+**AI Response**:
+- `data-model.md` consents テーブル定義から `user_agent_hash` 行を削除
+- `application-design.md` §3.3 SQL DDL から `user_agent_hash TEXT` 列を削除
+- `ip_hash` のみで状況証拠・否認防止としては十分との判断
+**Context**: INCEPTION - Application Design (consents テーブル簡素化)
+
+---
