@@ -101,7 +101,7 @@ flowchart TB
     subgraph STORAGE["💾 ストレージ・状態管理(Cloudflare)"]
         D1[(D1<br/>SQLite at edge<br/>15 テーブル)]
         KV[(KV<br/>冪等性キー /<br/>ルールキャッシュ)]
-        R2[(R2<br/>メール原文 30 日<br/>のみ MVP)]
+        R2[(R2<br/>メール原文 30 日 +<br/>監査ログアーカイブ)]
         DO[Durable Objects<br/>per-user 状態保持<br/>hibernate 可能]
     end
 
@@ -490,10 +490,10 @@ CREATE TABLE entries (
     id TEXT PRIMARY KEY,
     case_id TEXT NOT NULL REFERENCES cases(id),
     draft_id TEXT,                           -- Gmail draft id (エントリーメール下書き)
+    submitted_at TEXT,                       -- ユーザー送信時刻のヒューリスティック推定(Cron で Sent 照合)
     pr_used INTEGER NOT NULL DEFAULT 0,
-    submitted_at TEXT,                       -- ユーザー送信時刻(ユーザー操作)
-    confirmed_at TEXT,
     status TEXT NOT NULL DEFAULT 'pending',  -- pending | submitted | confirmed | declined | superseded
+    -- confirmed_at は削除: cases.status='confirmed' の updated_at で代替(冗長排除)
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -541,13 +541,15 @@ CREATE INDEX idx_calevents_case ON calendar_events(case_id);
 CREATE INDEX idx_calevents_user ON calendar_events(user_id, state);
 
 -- 0008 pr_corpus / decline_corpus(本人帰属、永続)
+-- pr_corpus = エントリーメール本文(全文)を Few-shot 例として保管
+-- 案件種別の事前分類はせず、LLM(Haiku)が案件メールを読んで PR 要否と文体を判断
 CREATE TABLE pr_corpus (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     source_message_id TEXT,
-    body TEXT NOT NULL,
+    body TEXT NOT NULL,                      -- エントリーメール本文(全文)
     office_id TEXT REFERENCES offices(id) ON DELETE SET NULL,
-    case_kind TEXT,                          -- "MC" | "コンパニオン" 等の推定 (PR 文体は案件種別に依存)
+    had_pr INTEGER NOT NULL DEFAULT 0,       -- 取込時にヒューリスティクスで PR 含有を判定(参考統計)
     char_length INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -877,7 +879,7 @@ pub enum UserAction {
 | LLM 呼び出しタイムアウト | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-1 | 25 秒(暫定、`AbortSignal.timeout`) |
 | Queue リトライ回数 | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-3 | 3 回 + 指数バックオフ(暫定) |
 | Cron 頻度(Watch 更新) | Unit-2 | Unit-2 Infrastructure Design 完了時 | NFR-3 | 毎時(暫定) |
-| Cron 頻度(R2 mail-cleanup / D1 prune-audit / D1 prune-extracted) | Unit-7: 監視・運用 | Unit-7 Infrastructure Design 完了時 | NFR-5(保管) | 日次(R2)/ 週次(audit)/ 月次(extracted)(暫定) |
+| Cron 頻度(R2 mail-cleanup / audit-archive-monthly / D1 prune-extracted) | Unit-7: 監視・運用 | Unit-7 Infrastructure Design 完了時 | NFR-5(保管) | 日次(R2 mail)/ 月次(audit R2 アーカイブ)/ 月次(extracted)(暫定) |
 | LLM 入出力トークン上限(プロンプト圧縮目標) | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト) | 入力 ≤ 1500、出力 ≤ 400(暫定) |
 | プロンプトキャッシュヒット率目標 | Unit-3 / Unit-5 / Unit-6 | βテスト中の運用調整 | NFR-7 | 70%(目標) |
 | `notification_event` の Flex Message テンプレート確定 | Unit-6 | Unit-6 Functional Design 完了時 | UX(P2 対応) | 雛形のみ、文言は MessageCatalog で確定 |

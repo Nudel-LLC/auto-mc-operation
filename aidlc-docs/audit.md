@@ -638,3 +638,19 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (アカウント削除ユースケースの正式コンポーネント化)
 
 ---
+
+## Application Design — data-model.md フォローアップ 6 件対応 (PR #3)
+**Timestamp**: 2026-05-04T18:10:00Z
+**User Input**: 18件の返信を確認し、納得したものはresolveしました。納得いかないものについて、返信を返したので、内容確認をお願いします。
+**AI Response**:
+- L213 (cases.status=entered): 「**エントリー下書き作成完了状態に限定**(辞退下書きは含まない)」を data-model.md §8 で明記。両ドラフト状態のあいまいさを解消
+- L287 (entries.submitted_at): 私の前回返信は対象カラム誤認(pr_required の話を返してしまっていた)。本来の `submitted_at` の検知方法(Cron で Sent フォルダを `gmail_thread_id` で照合する方式)を明記し、ヒューリスティックの正確性は保証されない旨も明示
+- L288 (entries.confirmed_at): 同じく対象カラム誤認。`confirmed_at` は `cases.status='confirmed'` の `updated_at` で代替可能で冗長 → **削除**
+- L330 (1 user の pr_corpus 件数): 1 user = 多レコード(過去のすべての応募メール)。次の返信で明確化予定
+- L345 (pr_corpus.case_kind): ご提案の方針に変更 — `case_kind` 列を **削除**、`body` にエントリーメール全文を格納し Few-shot 採用は `office_id` + 直近性で抽出して **LLM(Claude Haiku)が判定** する設計へ。`had_pr` は取込時のヒューリスティック判定を統計用に保持
+- L444 (audit_logs R2 アーカイブ): D1 12 ヶ月超を **R2 へ月次 NDJSON gzip エクスポート**(永続)。Cron `audit-archive-monthly` を §18 に追記、§17 の削除請求方針も「匿名化 + R2 アーカイブ持続」に整合
+- application-design.md DDL: entries(`confirmed_at` 削除)/ pr_corpus(`case_kind` → `had_pr`)更新、§1.2 R2 表記を「メール原文 + 監査ログアーカイブ」に
+- components.md D-4: Entry 集約から `confirmed_at` 削除、確定時刻は `cases` 側で管理する旨を明記
+**Context**: INCEPTION - Application Design (data-model.md フォローアップレビュー対応)
+
+---

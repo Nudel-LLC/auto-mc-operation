@@ -232,7 +232,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | `pr_required` | INTEGER | NOT NULL DEFAULT 0 | 0/1。U2-EC-03 で抽出時に LLM 判定。1 のとき A-6 が PR 文を Few-shot で生成。**理由**: A-6 ComposeEntryDraft が PR 文 Few-shot を取得するか分岐するために必須。**更新メカニズム**: 抽出時自動判定 + ユーザーが LINE 経由で訂正可(運用 API) |
 | `other_conditions` | TEXT | NULL 可 | 衣装・持ち物・年齢制限など自由記述条件 |
 | `extraction_warnings_json` | TEXT | NULL 可 | 必須項目欠落時の警告内容(JSON) |
-| `status` | TEXT | NOT NULL DEFAULT 'pending' | **案件のワークフロー状態**: `pending`(抽出済 / 未エントリー)/ `entered`(下書き作成済) / `confirmed`(事務所決定通知受信) / `declined`(辞退送信) / `expired`(締切超過)。`entries.status` は **「ユーザーの行動」状態**(下書き / 送信 / 承認待ち)を表すのに対し、こちらは **「案件全体」のフェーズ**を表す |
+| `status` | TEXT | NOT NULL DEFAULT 'pending' | **案件のワークフロー状態**: `pending`(抽出済 / 未エントリー)/ `entered`(**エントリー下書き作成済**、辞退下書きは含まない)/ `confirmed`(事務所決定通知受信)/ `declined`(辞退送信完了)/ `expired`(締切超過)。`entries.status` は **「ユーザーの行動」状態**(下書き / 送信 / 承認待ち)を表すのに対し、こちらは **「案件全体」のフェーズ**を表す。辞退ワークフローの詳細状態(承認待ち等)は `declines.status` で別途管理 |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
 **インデックス**:
@@ -283,10 +283,9 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | `id` | TEXT | PK / UUID v7 | エントリー ID |
 | `case_id` | TEXT | NOT NULL FK → `cases(id)` | 対象案件 |
 | `draft_id` | TEXT | NULL 可 | **エントリーメールの** Gmail Draft ID(辞退下書きは `declines.decline_draft` 側で別途管理)。送信前のステータス確認に使用 |
+| `submitted_at` | TEXT | NULL 可 | ユーザーが Gmail から実送信した時刻のヒューリスティック推定。**検知方法**: Cron(時/日次)で Gmail Sent フォルダを `gmail_thread_id` または `In-Reply-To` ヘッダで照合し、本サービス作成 draft 由来のメッセージが Sent に存在すれば「送信された」と判定して送信時刻を記録。ユーザーが draft を編集してから送ることもあるため正確性は保証されない(運用統計用、`status='submitted'` への遷移に使用) |
 | `pr_used` | INTEGER | NOT NULL DEFAULT 0 | 0/1。PR 文を含めたかどうか(運用統計用) |
-| `submitted_at` | TEXT | NULL 可 | ユーザーが Gmail から実送信した時刻(ヒューリスティクスで検知) |
-| `confirmed_at` | TEXT | NULL 可 | 決定連絡を受信した時刻 |
-| `status` | TEXT | NOT NULL DEFAULT 'pending' | `pending`(下書き作成済)/ `submitted`(送信検知)/ `confirmed` / `declined` / `superseded`(取り下げ後の旧履歴)。**`cases.status` が「案件全体のフェーズ」であるのに対し、こちらは「ユーザーの行動」状態** |
+| `status` | TEXT | NOT NULL DEFAULT 'pending' | `pending`(下書き作成済)/ `submitted`(送信検知)/ `confirmed` / `declined` / `superseded`(取り下げ後の旧履歴)。**`cases.status` が「案件全体のフェーズ」であるのに対し、こちらは「ユーザーの行動」状態**。`cases.status='entered'` は **エントリー下書き作成完了状態に限定**(辞退下書きの状態は `declines.status='proposed'` で別管理) |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
 **インデックス**:
@@ -355,20 +354,22 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 ---
 
-## 13. `pr_corpus` — PR 文学習データ(本人作成、永続)
+## 13. `pr_corpus` — エントリーメール文学習データ(本人作成、永続)
 
-**目的**: ユーザーが過去に書いたエントリーメール本文を Few-shot 例として保管。**本人作成の文章 = 本人帰属、永続保管**(NFR-5)。
+**目的**: ユーザーが過去に書いた **エントリーメール本文(全文)** を Few-shot 例として保管。**本人作成の文章 = 本人帰属、永続保管**(NFR-5)。
 
-**粒度**: **1 PR 文 = 1 送信メール本文**(過去の Sent フォルダから 1 メール本文 = 1 行で取り込む)。`source_message_id` は単一の送信メッセージ ID を指す。
+**粒度**: **1 行 = 1 送信メール本文(全文)**(過去の Sent フォルダから 1 メール本文 = 1 行で取り込む)。1 ユーザー = N 行(過去のすべての応募メール)。
+
+**Few-shot 採用方針**(L345 ご指摘反映): エントリーメール本文を **そのまま Few-shot 例**として A-6 に渡し、**PR 要素の有無は LLM(Claude Haiku)が現在の案件メールを読んで判定**する。事前に `case_kind` を分類しておく代わりに、選定アルゴリズム(`office_id` 一致 + 直近性)で関連例を 3〜5 件取り出し、Haiku に「この案件には PR が必要か?」「どの過去メールの文体に寄せるか?」を任せる。これにより `case_kind` 自動分類の不正確さを排除し、LLM 推論で柔軟に対応する。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `id` | TEXT | PK / UUID v7 | レコード ID |
 | `user_id` | TEXT | NOT NULL FK → `users(id)` | 所有者 |
 | `source_message_id` | TEXT | NULL 可 | 元の送信メッセージ ID(1 行 = 1 メール本文)。Cron 取込以外の経路(管理 API での投入)では NULL |
-| `body` | TEXT | NOT NULL | PR 文本体(プレーンテキスト) |
+| `body` | TEXT | NOT NULL | エントリーメール本文(全文、プレーンテキスト)。Few-shot 例としてそのまま LLM プロンプトに渡される |
 | `office_id` | TEXT | NULL 可 FK → `offices(id)` ON DELETE SET NULL | 宛先事務所(同一事務所別 Few-shot 採用優先度に使用) |
-| `case_kind` | TEXT | NULL 可 | 推定案件種別(`"MC"` / `"コンパニオン"` / `"司会"` 等)。**PR 文側のみで保持する理由**: PR 文体は案件種別に強く依存(MC は固い文体、コンパニオンは柔らかめ等)するが、辞退文は種別非依存で「失礼ながら…」の汎用パターンに収束するため `decline_corpus` には不要 |
+| `had_pr` | INTEGER | NOT NULL DEFAULT 0 | 0/1。**取り込み時にヒューリスティクスで判定**(本文に「自己 PR」「アピールポイント」等のキーワード or 一定字数以上の自己紹介段落の有無)。Few-shot 採用の参考統計用(LLM が PR 要否を判定する際のメタデータとしても使える) |
 | `char_length` | INTEGER | NOT NULL | 本文文字数。短/中/長の長さ推定で利用 |
 | `created_at` | TEXT | NOT NULL | 取込時刻 |
 
@@ -406,7 +407,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 ## 15. `audit_logs` — 監査ログ(append-only 同等)
 
-**目的**: F-06 で定義された **`actor` / `action_source` を必須化した完全追跡**。NFR-5 で 12 ヶ月保管(MVP では D1 から完全削除、Phase 2 で長期保管要件発生時に再設計)。
+**目的**: F-06 で定義された **`actor` / `action_source` を必須化した完全追跡**。D1 で 12 ヶ月保管後、**R2 にアーカイブ**(コンプライアンス・障害遡及調査用に長期保持)。
 
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
@@ -430,7 +431,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 **書き込み**: 全ユースケース(成功・失敗の両方)、F-06 Logger 経由
 **読み取り**: 運用(障害解析)、F-14 メトリクス集計、コンプライアンス監査
 
-**保管ポリシー**: 12 ヶ月超は Cron で D1 から物理削除(MVP 方針)。R2 アーカイブはメール原文に限定し、`audit_logs` は MVP では実施しない(§17 参照)。
+**保管ポリシー**: D1 で 12 ヶ月、超過分は Cron で **R2 にエクスポート**(月次 NDJSON or Parquet 圧縮)→ D1 から削除。R2 上の保管期間はライフサイクルポリシーで管理(MVP では永続、必要に応じて Phase 2 で年数指定)。詳細は §18。
 
 ---
 
@@ -504,7 +505,7 @@ erDiagram
 | `pr_corpus` | **物理削除** | 本人作成データ。**削除請求権の対象**(永続保管はサービス継続中のみ前提) |
 | `decline_corpus` | **物理削除** | 同上 |
 | `classification_rules` | **物理削除**(`scope='user'` のみ) | global ルールは対象外(個人情報なし) |
-| `audit_logs` | **匿名化保持** | `user_id = NULL` に UPDATE。`actor` / `target_id` / `payload_json` のフィールドはそのまま(セキュリティ監査・障害解析のため)。**通常の保管期間 12 ヶ月で自動的に物理削除**されるため永続保管にはならない |
+| `audit_logs` | **匿名化保持**(D1 + R2 アーカイブ) | `user_id = NULL` に UPDATE。`actor` / `target_id` / `payload_json` のフィールドはそのまま(セキュリティ監査・障害解析のため)。D1 12 ヶ月経過分は R2 にアーカイブされ続けるが、**匿名化済みなので個人特定不可**。R2 アーカイブの保管期間は MVP では永続(必要に応じて Phase 2 でライフサイクル設定) |
 | `offices` | **削除しない** | 共有マスタ。個人情報を含まない |
 | `office_patterns` | **削除しない** | 共有マスタ。個人情報を含まない |
 
@@ -536,29 +537,31 @@ erDiagram
 
 ## 18. データ保存方針(NFR-5 準拠)
 
-**MVP の R2 利用方針**: **メール原文(`.eml`)に限定**。`audit_logs` / 構造化データの R2 アーカイブは行わず、保管期間経過後は D1 から完全削除する。理由:
-- 実規模(MVP 数百ユーザー)では D1 ストレージは全く逼迫しない
-- 税務関連の長期保管(請求 CSV 等)は Phase 2 機能のため MVP では不要
-- アーカイブ → 復元の運用コストを MVP では持たない
+**MVP の R2 利用方針**: **メール原文(30 日)+ 監査ログアーカイブ(12 ヶ月超)** の 2 用途に限定。構造化データはすべて D1 内で完結し、R2 アーカイブは行わない。理由:
+- メール原文は容量大 + 30 日で十分(プライバシー優先)
+- 監査ログはコンプライアンス・障害遡及調査のため長期保管が望ましく、D1 のクエリ性能を保つために R2 オフロードが有効
+- 構造化抽出データ(24 ヶ月)は MVP 規模で D1 に収まり、24 ヶ月以降の参照需要も低い → 完全削除でシンプル化
 
 | データ種別 | 保管期間 | 保管先 | 期限後の処理 |
 |-----------|---------|--------|------------|
 | メール本文(原文) | 30 日 | **R2**(`raw_blob_key`)、`messages.raw_expires_at` で管理 | R2 オブジェクトライフサイクルで自動削除 |
-| 構造化抽出データ | 24 ヶ月 | D1(`messages` / `cases` / `schedules` / `entries` / `declines` / `calendar_events`) | D1 から物理削除 |
-| PR 文学習データ | 永続 | D1 `pr_corpus` | (削除なし) |
+| 構造化抽出データ | 24 ヶ月 | D1(`messages` / `cases` / `schedules` / `entries` / `declines` / `calendar_events`) | D1 から物理削除(R2 アーカイブなし) |
+| PR 文(エントリーメール)学習データ | 永続 | D1 `pr_corpus` | (削除なし) |
 | 辞退文学習データ | 永続 | D1 `decline_corpus` | (削除なし) |
 | 同意履歴 | 永続(append-only) | D1 `consents` | (削除なし) |
-| 監査ログ | 12 ヶ月 | D1 `audit_logs` | D1 から物理削除 |
+| 監査ログ | D1 12 ヶ月 → **R2 アーカイブ(永続)** | D1 `audit_logs` → R2 `archives/audit/{yyyy-mm}.ndjson.gz` | Cron で月次 NDJSON エクスポート + gzip → R2 → D1 から削除。R2 ライフサイクルは MVP で永続 |
 | OAuth トークン | ユーザー在籍期間中 | D1 `oauth_tokens`(暗号化) | 退会時に削除 |
 
-**Cron による削除ジョブ**(F-14 / F-13 範囲):
+**Cron による削除/アーカイブジョブ**(F-14 / F-13 範囲):
 - `r2-mail-cleanup` (R2 ライフサイクルで自動): `raw_expires_at` 経過した `.eml` オブジェクトを自動削除し、対応する `messages.raw_blob_key` を Cron で NULL に更新
-- `d1-prune-audit` (毎週): 12 ヶ月超の `audit_logs` を D1 から物理削除
+- `audit-archive-monthly` (毎月): 12 ヶ月超の `audit_logs` を月単位で NDJSON エクスポート → gzip → R2 にアップロード → D1 から削除
 - `d1-prune-extracted` (毎月): 24 ヶ月超の `messages` / `cases` / `schedules` / `entries` / `declines` / `calendar_events` を D1 から物理削除
+
+**R2 上のコスト見積り**(参考): 監査ログは 1 ユーザー × 100 events/日 × 12 ヶ月超 ≒ 36,500 行/年 → gzip 圧縮後 ~5 MB/年。1,000 ユーザー × 5 MB = 5 GB/年(無料枠 10 GB 内)で、NFR-7 への影響は無視できる。
 
 **Phase 2 で再検討する項目**:
 - 請求 CSV / 税務関連の長期保管(R2 アーカイブ + ユーザー主導エクスポート)
-- 監査ログの長期保管要件(コンプライアンス監査依頼時)
+- audit_logs R2 アーカイブの保管期限(法令変更等で必要に応じて設定)
 
 ---
 
