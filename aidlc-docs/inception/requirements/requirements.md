@@ -85,7 +85,7 @@
 | **F5** | LINE 通知 | 処理結果(分類・抽出・空き確認・下書き作成・辞退候補)を LINE Messaging API でリアルタイム通知 |
 | **F6** | カレンダー自動管理 | エントリー時に「仮」予定登録、決定時に「確定」更新、辞退時に削除 |
 | **F7** | 辞退連絡(半自動) | 重複検出時に辞退メール下書きを作成し、ユーザー承認後に送信 |
-| ~~**F8**~~ | ~~請求 CSV エクスポート~~ | **Phase 2 へ移動**(stories.md レビュー Round 6 で決定。Cl-2 D の MVP スコープ "A+B+C+D+F" に F8 は含まれていなかった整合のため、`stories.md` の P2-08 / `application-design.md` の Phase 2 Epic 概略へ移管済み) |
+| ~~**F8**~~ | ~~請求 CSV エクスポート~~ | **Phase 2 へ移動**(stories.md レビュー Round 6 で決定。Cl-2 D の MVP スコープ "A+B+C+D+F" に F8 は含まれていなかった整合のため、`stories.md` Phase 2 Epic の **P2-08** へ移管済み) |
 
 ### 4.2 MVP に含めないもの(Phase 2 以降)
 - ~~マルチテナント機能(認証・テナント分離・課金)~~ — **P2-01 取り下げ済み**(本サービスは個人 MC 向けに集中)
@@ -212,7 +212,7 @@
 - **SECURITY-09**: 本番エラーレスポンスにスタックトレース等を含めない、デフォルト認証情報排除
 - **SECURITY-10**: `Cargo.lock` コミット、`cargo audit` を CI に組込み、SBOM 生成、Docker `latest` 禁止
 - **SECURITY-11**: 設計フェーズで脅威モデリング(STRIDE)を実施(枠組み・ユニット別マイルストーンは `application-design.md` の「STRIDE 脅威モデリング」節、各ユニットの Functional Design ステージで詳細実施)
-- **SECURITY-12**: 認証・資格情報管理 — OAuth リフレッシュトークンは AES-256-GCM 暗号化(F-09 / `oauth_tokens` テーブル)、Anthropic / LINE / Google の API キー類はすべて Wrangler secrets、ハードコード禁止 lint で機械的検証(F-08)
+- **SECURITY-12**: 認証・資格情報管理 — OAuth リフレッシュトークンは AES-256-GCM 暗号化(F-09 / `oauth_tokens` テーブル)、Anthropic / LINE / Google の API キー類はすべて Wrangler secrets、ハードコード禁止 lint で機械的検証(F-09 シークレット管理側の責務。F-08 は MessageCatalog の専門用語禁止 lint であり別物)
 - **SECURITY-13**: ソフトウェア・データ完全性 — `Cargo.lock` 必須コミット、CI で `cargo audit` 実行、**Worker WASM ビルド成果物のチェックサム検証**(GitHub Actions で SHA-256 を artifact に添付し、`wrangler deploy` 前に照合)、デプロイは GitHub Actions の信頼済 Workflow からのみ(branch protection + 環境別トークン分離、SECURITY-10 と相互補完)
 - **SECURITY-14**: アラートと監視 — F-14(stories.md)の監視枠組みおよび `application-design.md` の運用アラート閾値 TBD に従い、Worker invocation 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト超過 を運用者 LINE グループへリアルタイムアラート(F-06 構造化ログを起点)
 - **SECURITY-15**: 例外ハンドリング・フェイルセーフ既定 — 失敗時は **以下 4 カテゴリに分類** し、デフォルトでは「ユーザーへ被害を及ぼさない」方向に倒す:
@@ -342,7 +342,7 @@
 | 元質問 | 回答 | 反映先 |
 |--------|------|--------|
 | Q1 ユーザー規模 | D: 1名 MVP → SaaS 拡張 | 3.1, 3.2, 4.1 |
-| Q2/Cl-2 MVP 機能 | D: A+B+C+D+F | 4.1 (F1〜F8) |
+| Q2/Cl-2 MVP 機能 | D: A+B+C+D+F | 4.1 (F1〜F7、F8 は Round 6 で Phase 2 移管 = P2-08) |
 | Q3 エントリー送信自動化 | C: 下書きのみ Gmail 保存 | 4.3, FR-4 |
 | Q4 辞退送信自動化 | B: 半自動 | 4.3, FR-7 |
 | Q5 Gmail 連携 | A: Push 通知 | FR-1, 7.4 |

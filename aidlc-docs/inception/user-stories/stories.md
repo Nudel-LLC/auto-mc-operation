@@ -8,7 +8,7 @@
 ---
 
 ## 構成方針(Plan セクション 8 準拠 + P2 ペルソナ反映 + レビュー反映)
-- **Foundation Epic** + **MVP Use Case Epics(8 個)** + **Phase 2 Epic 概略**
+- **Foundation Epic** + **MVP Use Case Epics(7 個、F1〜F7。F8 は Round 6 で Phase 2 移管 = `P2-08`)** + **Phase 2 Epic 概略**
 - 粒度: 最小ユーザーアクション = 1 Story、各 Story に 3〜5 個の Given-When-Then 受入条件
 - メタ: Priority(MoSCoW) + Size(S/M/L) + Type(User Story / Enabler Story / Edge Case)
 - トレーサビリティ: 各 Story に Implements(FR/NFR / 個別 SECURITY-XX)を付与

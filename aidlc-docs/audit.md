@@ -800,3 +800,28 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (AI レビュー Round 8 / 3 ラウンド累積指摘の反映)
 
 ---
+
+## INCEPTION - Application Design (AI レビュー Round 9 / マルチエージェント設計レビュー対応)
+**Timestamp**: 2026-05-04T23:30:00Z
+**User Input**: "新規にコメントしました。内容が妥当か確認し、妥当なものは修正してください。https://github.com/Nudel-LLC/auto-mc-operation/pull/3#issuecomment-4374827621"
+**AI Response**: PR #3 #issuecomment-4374827621(マルチエージェント並列レビュー、起点 SHA d6f86f7)で挙げられた合計 31 件のうち、Round 8(f3720db)で既に解決済みのもの(視点1 #2 / 視点3 C-3-1 / C-3-2 = 3 件)を除き、妥当な指摘 11 件 + 関連修正を反映:
+  - **🔴 視点1 #1 (Critical)**: requirements.md L88 の `application-design.md の Phase 2 Epic 概略` 誤参照(application-design.md には §17 等の Phase 2 Epic 節は存在しない)を `stories.md` Phase 2 Epic の P2-08 に正規化
+  - **🔴 視点1 #3 (Critical)**: execution-plan.md 4 箇所(L8 / L121 / L126 / L203)の「62 Story」を「69 Story」(MVP+Foundation 58 + Phase 2 active 11)に修正、内訳明示
+  - **🔴 視点1 #4 (Critical)**: execution-plan.md 2 箇所(L137 / L204)の「SECURITY-01〜18」を「SECURITY-01〜15(全 15 ルール)」に修正(Round 2 修正の逆波及漏れ解消)
+  - **🔴 視点2 C1 (Critical)**: components.md L52 の `DomainError` variant を「タプル風 1 引数」から「構造体 variant + 2 フィールド」(`Transient { source, retryable }` / `Recoverable { action, message_key }` / `DataIssue { field, raw_value }` / `Permanent { reason, audit_required }`)に統一、`#[serde(rename_all = "snake_case", tag = "kind")]` シリアライズ規約も明記して 3 文書(components.md / component-methods.md / application-design.md)整合
+  - **🔴 視点4 #1 (Critical)**: audit_logs append-only トリガー DDL を application-design.md §3.3 に追加(`trg_audit_no_update` / `trg_audit_no_delete`、SECURITY-08 改竄防止の機械的保証)、data-model.md §15 に「append-only 強制」節 + アーカイブ運用注記
+  - **🔴 視点4 #2 (Critical Medium)**: application-design.md §4.6.0「共通 HTTP セキュリティヘッダ middleware」を新設、HSTS / CSP / X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Cache-Control / X-Robots-Tag を `crates/presentation/src/middleware/security_headers.rs` に集約する責務配置を明示、CI 機械検証 + 統合テスト E2E + 詳細確定先 = Unit-1 Foundation FD と整理
+  - **🟡 視点1 #5 (Warning)**: stories.md L11 「MVP Use Case Epics(8 個)」を「(7 個、F1〜F7。F8 は Round 6 で Phase 2 移管 = P2-08)」に陳腐化解消
+  - **🟡 視点1 #6 (Warning)**: personas.md L170 「機能要件(F1〜F8)」を「(F1〜F7、F8 は Round 6 で Phase 2 移管 = P2-08)」に修正
+  - **🟡 視点1 #7 (Warning)**: requirements.md L345 「4.1 (F1〜F8)」を「4.1 (F1〜F7、F8 は Round 6 で Phase 2 移管 = P2-08)」に修正
+  - **🟡 視点4 #3 (Warning)**: requirements.md SECURITY-12 「ハードコード禁止 lint で機械的検証(F-08)」の F-08 誤参照を F-09(シークレット管理側の責務)に修正、F-08 が MessageCatalog の専門用語禁止 lint であることを明記して別物と整理
+  - **🟡 視点2 W2 (Warning)**: A-6 / A-8 の名称揺れを統一 — `ComposeDraft` → `ComposeEntryDraft`(components.md の正式名 `ComposeEntryDraftUseCase` 短縮)、`DetectDecline` / `DetectAndDecline` → `DetectAndDeclineConflicts` (`DetectAndDeclineConflictsUseCase` 短縮)。component-dependency.md / component-methods.md / services.md / application-design.md / data-model.md の全 8 箇所一括修正
+
+判断保留:
+- 視点1 #8 (Critical): requirements.md → application-design.md 直接参照(参照方向違反)。requirements.md の SECURITY-11/14 等が application-design.md のセクション参照を含むが、これは「要件 → 実装方針へのトレース」として自然な関係であり、id-index.md 経由に間接化すると要件文書の可読性が下がる。Round 7 で SECURITY-11/14 のセクション参照を「節タイトル参照」に変更済(id-index.md L20 で正本配置情報は集約済)のため、現在の参照スタイルは妥当と判断し対応見送り
+- 視点1 #2 / 視点3 C-3-1 / C-3-2: Round 8 (f3720db) で対応済み、レビューが d6f86f7 起点のため再指摘
+- 視点5 F-1〜F-7 (Warning/Suggestion): Functional Design ステージで深堀りする項目(NotificationChannel 抽象化 / NFR-2 段別バジェット / 依存外部サービス仕様 / トレース軸 / 期間根拠)。application-design.md §9 TBD 一覧で確定先ユニットを既に明示しており、本ステージでの追加対応は不要と判断
+- 視点2 W1 / S1 / S2 / 視点3 W-3-1 / S-3-1 / S-3-2 / 視点4 #4 #5 (Suggestion 群): 個別の表記揺れ・粒度差で実装阻害ではないため、今回は対応見送り
+**Context**: INCEPTION - Application Design (Round 9 マルチエージェント並列レビュー反映)
+
+---

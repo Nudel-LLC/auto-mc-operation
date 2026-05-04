@@ -24,9 +24,9 @@ flowchart TB
         A3[ClassifyMail]
         A4[ExtractCase]
         A5[CheckAvailability]
-        A6[ComposeDraft]
+        A6[ComposeEntryDraft]
         A7[ManageCalendar]
-        A8[DetectDecline]
+        A8[DetectAndDeclineConflicts]
         A9[NotifyUser]
         A10[RotateGmailWatch]
         A11[DeleteUser]
@@ -92,9 +92,9 @@ flowchart TB
 | A-3 ClassifyMail | ✓ |   |   |   | ✓ |   |   |   |   | ✓ | ✓ |   |   |   | ✓ |   |   |
 | A-4 ExtractCase | ✓ | ✓ |   |   | ✓ |   |   |   | ✓ |   | ✓ |   |   |   | ✓ |   |   |
 | A-5 CheckAvail | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   | ✓ |   |   |   |   |
-| A-6 ComposeDraft | ✓ | ✓ | ✓ |   |   | ✓ |   |   | ✓ |   | ✓ | ✓ |   |   | ✓ |   |   |
+| A-6 ComposeEntryDraft | ✓ | ✓ | ✓ |   |   | ✓ |   |   | ✓ |   | ✓ | ✓ |   |   | ✓ |   |   |
 | A-7 ManageCal | ✓ | ✓ | ✓ |   |   |   |   |   |   |   | ✓ |   | ✓ |   |   |   |   |
-| A-8 DetectDecline | ✓ | ✓ | ✓ | ✓ |   |   | ✓ |   |   |   | ✓ | ✓ |   |   | ✓ |   |   |
+| A-8 DetectAndDeclineConflicts | ✓ | ✓ | ✓ | ✓ |   |   | ✓ |   |   |   | ✓ | ✓ |   |   | ✓ |   |   |
 | A-9 NotifyUser | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   |   | ✓ |   |   |   |
 | A-10 RotateGmailWatch | ✓ |   |   |   |   |   |   |   |   |   | ✓ | ✓ |   |   |   |   |   |
 | A-11 DeleteUser | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |   |   | ✓ | ✓ | ✓ | ✓ |   | ✓ |   |
@@ -223,4 +223,4 @@ pub enum DeclinePayload {
 
 `services.md` の Saga 図参照。`A-2 → A-3 → A-4 → A-5 → A-6 → A-9 → (Postback) → A-7` がメインフロー。
 
-決定後の補完フロー: `A-3(decision) → A-7 PromoteAndCleanup → A-8 DetectDecline → A-9 → (Postback) → A-8 send → A-7 DeleteAllByCase(declined)`。
+決定後の補完フロー: `A-3(decision) → A-7 PromoteAndCleanup → A-8 DetectAndDeclineConflicts → A-9 → (Postback) → A-8 send → A-7 DeleteAllByCase(declined)`。

@@ -48,9 +48,9 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | `cases` | 案件マスタ | A-4 ExtractCase | A-5〜A-9 |
 | `schedules` | 候補スロット(複数日程対応) | A-4 / A-7 | A-5 / A-7 / A-8 |
 | `entries` | エントリー実績 | A-6 / 確定検出 | A-9 / `[Phase 2: P2-08]` 請求 CSV |
-| `declines` | 辞退送信記録 | A-8 DetectAndDecline | 監査・運用 |
+| `declines` | 辞退送信記録 | A-8 DetectAndDeclineConflicts | 監査・運用 |
 | `calendar_events` | サービス所有のカレンダーイベント追跡 | A-7 ManageCalendar | A-7(状態更新時) |
-| `entry_corpus` | エントリーメール文学習データ(本人作成、永続) | A-1 / 定期取込 | A-6 ComposeDraft |
+| `entry_corpus` | エントリーメール文学習データ(本人作成、永続) | A-1 / 定期取込 | A-6 ComposeEntryDraft |
 | `decline_corpus` | 辞退文学習データ(本人作成、永続) | A-1 / 定期取込 | A-8 |
 | `audit_logs` | 監査ログ | 全ユースケース | 運用・障害解析 |
 
@@ -309,7 +309,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 - `idx_entries_case_active ON entries(case_id) WHERE status != 'superseded'`:現役エントリー取得(部分インデックス)
 - `idx_entries_status ON entries(status)`:`[Phase 2: P2-08]` 請求 CSV エクスポート用
 
-**書き込み**: A-6 ComposeDraft(初回作成)、A-3 / A-7(状態更新)、A-6(取り下げ時に旧 `superseded` 化 + 新 `pending` INSERT)
+**書き込み**: A-6 ComposeEntryDraft(初回作成)、A-3 / A-7(状態更新)、A-6(取り下げ時に旧 `superseded` 化 + 新 `pending` INSERT)
 **読み取り**: A-9 通知時、`[Phase 2: P2-08]` 請求 CSV エクスポート
 
 **確定スロットの参照方法**: 「この案件で確定したスロット」を取得する場合は `SELECT * FROM schedules WHERE case_id = ? AND is_chosen = 1` を使う(複数確定対応のため `entries` 側に単一 FK を持たない)。
@@ -345,7 +345,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 - `idx_declines_case ON declines(case_id)`:案件→辞退候補
 - `idx_declines_case_active ON declines(case_id) WHERE status != 'superseded'`:現役 decline 取得(部分インデックス、`entries` と同方針)
 
-**書き込み**: A-8 DetectAndDecline(`proposed`)、A-9 Postback(`approved`)、A-8 send(`sent`/`failed`)
+**書き込み**: A-8 DetectAndDeclineConflicts(`proposed`)、A-9 Postback(`approved`)、A-8 send(`sent`/`failed`)
 **読み取り**: A-9(承認確認)、運用(辞退漏れチェック)
 
 ---
@@ -409,7 +409,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 - `idx_entry_user_office ON entry_corpus(user_id, office_id)`:同一事務所宛 Few-shot 取得
 
 **書き込み**: A-1 OnboardUser(初回 Sent フォルダから収集)、Cron(定期再収集)
-**読み取り**: A-6 ComposeDraft(プロンプト Few-shot 構築)
+**読み取り**: A-6 ComposeEntryDraft(プロンプト Few-shot 構築)
 
 ---
 
@@ -435,7 +435,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 - `idx_decline_user_office ON decline_corpus(user_id, office_id)`:同一事務所宛 Few-shot 取得
 
 **書き込み**: A-1 OnboardUser(初回 Sent フォルダから「辞退/失礼ながら/お見送り」キーワードで収集)、Cron(定期)
-**読み取り**: A-8 DetectAndDecline(辞退下書き生成時の Few-shot)
+**読み取り**: A-8 DetectAndDeclineConflicts(辞退下書き生成時の Few-shot)
 
 ---
 
@@ -462,7 +462,13 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 - `idx_audit_user_time ON audit_logs(user_id, created_at)`:ユーザー別タイムライン
 - `idx_audit_action ON audit_logs(action, created_at)`:アクション種別ダッシュボード(F-14 監視)
 
-**書き込み**: 全ユースケース(成功・失敗の両方)、F-06 Logger 経由
+**append-only 強制**(NFR-4 SECURITY-08 改竄防止の機械的保証、`consents` と同方針):
+- `CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ... RAISE(ABORT, ...)` で UPDATE を全面拒否(監査ログは過去レコードを書き換えてはならない)
+- `CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ... RAISE(ABORT, ...)` で通常の DELETE を拒否(物理削除は archive job のみ許容)
+- DDL 詳細は `application-design.md` §3.3 参照
+- **アーカイブ運用**: 12 ヶ月超過レコードを R2 にエクスポートしてから D1 から削除する処理は、トリガー対象外の **専用 batch job(別接続 + 一時的 DELETE 権限)** で実施する設計(通常のアプリケーション層からは DELETE 不能を維持)
+
+**書き込み**: 全ユースケース(成功・失敗の両方、INSERT のみ)、F-06 Logger 経由
 **読み取り**: 運用(障害解析)、F-14 メトリクス集計、コンプライアンス監査
 
 **保管ポリシー**: D1 で 12 ヶ月、超過分は Cron で **R2 にエクスポート**(月次 NDJSON or Parquet 圧縮)→ D1 から削除。R2 上の保管期間は MVP では永続(必要に応じて `[Phase 2: P2-09]` で法令変更時のライフサイクル設定を追加)。詳細は §18。

@@ -336,7 +336,7 @@ pub async fn handle_pubsub_webhook(req: Request, env: Env) -> Result<Response, w
 
 // P-5
 pub async fn run_queue_consumer<C: ConsumerLogic>(batch: MessageBatch, env: Env) -> Result<(), worker::Error>;
-// Queue ごとに ClassifyMail / ExtractCase / CheckAvailability / ComposeDraft / Notify / ManageCalendar の各ユースケースを呼ぶ
+// Queue ごとに ClassifyMail / ExtractCase / CheckAvailability / ComposeEntryDraft / Notify / ManageCalendar / DetectAndDeclineConflicts の各ユースケースを呼ぶ
 ```
 
 ---

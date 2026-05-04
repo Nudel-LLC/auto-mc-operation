@@ -223,7 +223,7 @@ flowchart LR
     P5c --> Q4[draft_queue]
     P5c --> Q5
 
-    Q4 -- event-trigger --> P5d[P-5 Consumer<br/>A-6 ComposeDraft]
+    Q4 -- event-trigger --> P5d[P-5 Consumer<br/>A-6 ComposeEntryDraft]
     P5d --> Q5
 
     Q5 -- event-trigger --> P5e[P-5 Consumer<br/>A-9 NotifyUser]
@@ -232,7 +232,7 @@ flowchart LR
     Qcal -- event-trigger --> P5f[P-5 Consumer<br/>A-7 ManageCalendar]
     P5f --> Qdec
 
-    Qdec -- event-trigger --> P5g[P-5 Consumer<br/>A-8 DetectAndDecline]
+    Qdec -- event-trigger --> P5g[P-5 Consumer<br/>A-8 DetectAndDeclineConflicts]
     P5g --> Q5
 
     P6[P-6<br/>scheduled handler] --> Q1
@@ -598,6 +598,15 @@ CREATE TABLE audit_logs (
 );
 CREATE INDEX idx_audit_user_time ON audit_logs(user_id, created_at);
 CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
+
+-- audit_logs append-only 強制(NFR-4 SECURITY-08 改竄防止の機械的保証)
+-- consents と同方針: UPDATE / DELETE をトリガーで拒否し、INSERT のみ許可
+-- アーカイブ(R2 への月次エクスポート + D1 からの削除)は専用 batch job で実施し、
+-- そのジョブだけ一時的に DELETE 権限を持つ別接続で実行する運用設計とする
+CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ON audit_logs
+BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END;
+CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ON audit_logs
+BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only (use batch archive job for retention)'); END;
 ```
 
 ---
@@ -661,6 +670,30 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 1. リクエスト ID を計算(LINE: webhook event id / Pub/Sub: message id)
 2. KV `idempotency:{kind}:{id}` を確認
 3. 既処理ならスキップ、未処理なら 24 時間有効でマーク + 処理開始
+
+### 4.6.0 共通 HTTP セキュリティヘッダ middleware(NFR-4 SECURITY-04 / SECURITY-13 準拠)
+
+すべての HTTP レスポンス(`P-1`〜`P-4` / `P-7` の全ハンドラ + 静的レスポンス)に対して **共通 middleware が以下のセキュリティヘッダを必ず付与** する。実装は `crates/presentation/src/middleware/security_headers.rs` として 1 箇所に集約し、各ハンドラの出口で `apply_security_headers(&mut response)` を機械的に呼び出す(pre-commit hook + CI で関数呼び出しの欠落を `cargo deny` カスタム lint により機械検出)。
+
+| ヘッダ | 値 | 目的 / 根拠 |
+|--------|-----|-------------|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | TLS 強制(stories.md F-10 AC-3 / SECURITY-04)、Cloudflare 終端の上で念押し |
+| `Content-Security-Policy` | API レスポンス: `default-src 'none'; frame-ancestors 'none'`、HTML 返却(`[Phase 2: P2-02]` LIFF / Web ダッシュボード)時は別途設定 | XSS / クリックジャッキング(SECURITY-04) |
+| `X-Content-Type-Options` | `nosniff` | MIME スニッフィング防止(SECURITY-04) |
+| `X-Frame-Options` | `DENY`(LIFF 連携時のみ `SAMEORIGIN`) | クリックジャッキング(SECURITY-04 / `[Phase 2: P2-02]` LIFF 例外) |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | リファラ漏洩防止(SECURITY-04) |
+| `Cache-Control` | `no-store`(認証 API)/ `public, max-age=...`(静的) | 認証情報のキャッシュ漏洩防止(SECURITY-04) |
+| `X-Robots-Tag` | `noindex, nofollow`(LINE Webhook / 管理 API) | 検索エンジン回避(運用上) |
+
+**例外ハンドリング**:
+- 例外ハンドラが早期 return する場合も middleware を経由するように、Worker のエントリポイント(`#[event(fetch)]`)で `Result` を `unwrap` せず最終 `Response` 化の段階で middleware を必ず通す。
+- LIFF 連携(`[Phase 2: P2-02]`)時の `frame-ancestors` 緩和は別 PR(Phase 2 作業範囲)で扱い、本 MVP では `frame-ancestors 'none'` に固定。
+
+**機械的保証**:
+- middleware を通さない `Response::ok(...)` 等の直接 return を **禁止する CI カスタム lint** を `crates/presentation/clippy.toml` または `xtask` で実装(F-13 テスト戦略)。
+- 統合テスト(F-13)で全ハンドラの全レスポンスに上記ヘッダが含まれることを E2E 検証。
+
+**詳細確定先**: 各ヘッダの値・LIFF 例外パターン・CSP の `script-src` 等のホワイトリスト具体化は **Unit-1 Foundation 基盤の Functional Design 完了時** に確定(`§9 TBD 一覧` には未追加だが Unit-1 範囲として運用)。
 
 ---
 

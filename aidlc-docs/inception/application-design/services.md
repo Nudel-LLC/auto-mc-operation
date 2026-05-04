@@ -90,7 +90,7 @@ sequenceDiagram
 | `draft_queue` | A-5(verdict=Available) | A-6 ComposeEntryDraft | `draft_dlq` |
 | `notify_queue` | A-3(label=decision) / A-5 / A-6 / A-7(完了通知) / A-8 | A-9 NotifyUser | `notify_dlq` |
 | `calendar_queue` | A-3(label=decision)/ A-9 Postback / A-8 (辞退送信完了後) | A-7 ManageCalendar | `calendar_dlq` |
-| `decline_queue` | A-7 PromoteAndCleanup 完了後 | A-8 DetectAndDecline | `decline_dlq` |
+| `decline_queue` | A-7 PromoteAndCleanup 完了後 | A-8 DetectAndDeclineConflicts | `decline_dlq` |
 
 **A-3(label=decision)受信時の方針**(C1 修正で統一):
 - A-3 の Consumer は **`notify_queue` と `calendar_queue` の両方に enqueue** する(同期呼び出しは廃止)

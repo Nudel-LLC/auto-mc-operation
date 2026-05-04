@@ -5,7 +5,7 @@
 - **タイプ**: Greenfield(新規開発)
 - **言語/プラットフォーム**: Rust + Cloudflare Workers (workers-rs) → 拡張時 GCP Cloud Run
 - **MVP スコープ**: F1〜F5 + F6/F7 部分(分類 / 抽出 / 空き確認 / エントリー下書き / LINE 通知 / カレンダー管理 / 辞退連絡 半自動)
-- **Story 規模**: 62 Story(Foundation 14 + MVP Use Case 1〜7 = 44 / Phase 2 概略 12)
+- **Story 規模**: 69 Story(Foundation 14 + MVP Use Case 1〜7 = 44(MVP+Foundation 計 58)+ Phase 2 active 11(P2-02〜P2-12、P2-01 取り下げ済))
 - **拡張機能**: Security Baseline + Property-Based Testing 双方 強制(blocking)
 
 ---
@@ -118,12 +118,12 @@ flowchart TD
 - [ ] ~~Reverse Engineering~~ — **SKIP**
   - **Rationale**: Greenfield プロジェクトのため対象なし
 - [x] **Requirements Analysis** — COMPLETED(2 ラウンドのレビュー対応 + 月額500円目標 / 複数日程対応 等の追加反映済み)
-- [x] **User Stories** — COMPLETED(62 Story、レビュー 6 ラウンドで Foundation / Use Case 1〜7 を詳細化、Phase 2 概略あり)
+- [x] **User Stories** — COMPLETED(69 Story = MVP+Foundation 58 + Phase 2 active 11、レビュー 8 ラウンドで Foundation / Use Case 1〜7 を詳細化、Phase 2 概略あり、P2-01 取り下げ済)
 - [x] **Workflow Planning** — IN PROGRESS(本ドキュメント)
 - [ ] **Application Design** — **EXECUTE**
   - **Rationale**: 新規コンポーネント多数(F-01〜F-14 の 14 Foundation Story が示すサブシステム)、DDD レイヤ別の責務・トレイト定義・コンポーネント間相互作用を明確化する必要。Mermaid で C4 Context / Container 図、コンポーネント責務、API エンドポイント設計、データモデル(D1 スキーマ)を確定
 - [ ] **Units Generation** — **EXECUTE**
-  - **Rationale**: 62 Story を Construction フェーズで処理しやすいユニットに分解。**ユニット候補**: Unit-1: Foundation 基盤 / Unit-2: メール取込・分類(F1)/ Unit-3: 案件抽出(F2)/ Unit-4: カレンダー連携(F3+F6)/ Unit-5: エントリー下書き + 学習データ(F4)/ Unit-6: LINE 通知 + 半自動承認(F5+F7)/ Unit-7: 監視・運用(F-13/F-14)。各ユニットを Construction の per-unit loop で順次処理
+  - **Rationale**: 69 Story を Construction フェーズで処理しやすいユニットに分解(対象は MVP+Foundation 58 件、Phase 2 active 11 件は MVP 範囲外)。**ユニット候補**: Unit-1: Foundation 基盤 / Unit-2: メール取込・分類(F1)/ Unit-3: 案件抽出(F2)/ Unit-4: カレンダー連携(F3+F6)/ Unit-5: エントリー下書き + 学習データ(F4)/ Unit-6: LINE 通知 + 半自動承認(F5+F7)/ Unit-7: 監視・運用(F-13/F-14)。各ユニットを Construction の per-unit loop で順次処理
 
 ### 🟢 CONSTRUCTION PHASE(per-unit loop)
 
@@ -134,7 +134,7 @@ flowchart TD
 - [ ] **NFR Requirements** — **EXECUTE**(ユニット毎)
   - **Rationale**: Security Baseline + PBT 拡張が **強制**(blocking)、NFR-1 レイテンシ / NFR-7 コストの達成方法を各ユニットで具体化
 - [ ] **NFR Design** — **EXECUTE**(ユニット毎)
-  - **Rationale**: SECURITY-01〜18 のうち各ユニットに該当するルールの実装パターン、PBT 対象の特定(F-13 で枠組み済み)
+  - **Rationale**: SECURITY-01〜15(全 15 ルール)のうち各ユニットに該当するルールの実装パターン、PBT 対象の特定(F-13 で枠組み済み)
 - [ ] **Infrastructure Design** — **EXECUTE**(ユニット毎、特に Foundation / メール取込 / 通知)
   - **Rationale**: Cloudflare 3 環境 / Wrangler 設定 / D1 マイグレーション / Queues / Cron / Durable Objects / Pub/Sub / DNS の具体設計
 - [ ] **Code Generation** — **EXECUTE**(ALWAYS、ユニット毎)
@@ -200,8 +200,8 @@ Unit-7: 監視・運用ハードニング
 
 ### Key Deliverables
 1. Cloudflare Workers にデプロイされた MVP(F1〜F5 + F6 部分 + F7 部分)
-2. 62 Story すべてに対応する受入テスト(Given-When-Then)が CI で全グリーン
-3. SECURITY-01〜18 + PBT 拡張ルールが CI で強制されている
+2. 69 Story のうち MVP+Foundation 58 件に対応する受入テスト(Given-When-Then)が CI で全グリーン(Phase 2 active 11 件は MVP 範囲外、Phase 2 着手時に対応)
+3. SECURITY-01〜15(全 15 ルール)+ PBT 拡張ルールが CI で強制されている
 4. `docs/` 配下に運用文書一式(architecture / environments / cloudflare-cost / secrets-management / messaging-conventions / system-overview / api-design / test-strategy / observability / operations)
 5. P2 ペルソナ向けの **専門用語ゼロ・ボタンのみ操作** UX が実現
 

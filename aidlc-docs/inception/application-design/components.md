@@ -49,7 +49,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 ### Domain Errors
 | # | コンポーネント | 責務 |
 |---|--------------|------|
-| **D-19** | `DomainError` enum | Q3=C により **U2-EC-04 の 4 カテゴリ** を最上位:`Transient(reason)` / `Recoverable(action_required)` / `DataIssue(field)` / `Permanent(reason)`。各カテゴリの下にドメイン別 variants をネスト |
+| **D-19** | `DomainError` enum | Q3=C により **U2-EC-04 の 4 カテゴリ** を最上位の **構造体 variant** で定義(詳細シグネチャは `component-methods.md §1` / `application-design.md §5.1` を正本とする): `Transient { source: TransientCause, retryable: bool }` / `Recoverable { action: UserAction, message_key: MessageKey }` / `DataIssue { field: &'static str, raw_value: Option<String> }` / `Permanent { reason: String, audit_required: bool }`。`#[serde(rename_all = "snake_case", tag = "kind")]` でシリアライズし `audit_logs.error_kind` の `transient`/`recoverable`/`data_issue`/`permanent` と一致 |
 
 ---
 
