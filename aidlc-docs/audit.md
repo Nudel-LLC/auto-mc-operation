@@ -625,3 +625,16 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (ユーザー削除請求対応の仕様明文化)
 
 ---
+
+## Application Design — A-11 DeleteUserUseCase 正式追加
+**Timestamp**: 2026-05-04T17:50:00Z
+**User Input**: 削除についてはその方針でよいです。更新してください。
+**AI Response**:
+- components.md §2 に **A-11 `DeleteUserUseCase`** を正式追加(saga 7 ステップを §責務 行に集約、詳細仕様は data-model.md §17 を参照)
+- components.md §6 まとめ表を `52 → 53` に、Application 行を `10 → 11` に更新
+- application-design.md §8 完了基準を「11 ユースケース / 53 コンポーネント」に更新
+- id-index.md A-N 範囲を `A-1〜A-11` に更新
+- data-model.md §17.7 を「正式登録済み」表記に変更(候補 → 確定)
+**Context**: INCEPTION - Application Design (アカウント削除ユースケースの正式コンポーネント化)
+
+---

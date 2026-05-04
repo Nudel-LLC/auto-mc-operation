@@ -18,7 +18,7 @@
 | **P2-NN** | P2-01〜P2-08 | **Phase 2 Story 概略** | `inception/user-stories/stories.md` Phase 2 Epic セクション | requirements.md §4.2、application-design.md §17 |
 | **P1 / P2(ペルソナ)** | P1, P2 | **ユーザーペルソナ**(P1: AI 慣れ / P2: AI 未経験) | `inception/user-stories/personas.md` | stories.md 構成方針、application-design.md §1.0 |
 | **D-NN** | D-1〜D-19 + D-18.5 | **ドメイン層コンポーネント** | `inception/application-design/components.md` §1 ドメイン層 | component-methods.md(シグネチャ)、component-dependency.md(依存マトリクス) |
-| **A-N** | A-1〜A-10 | **アプリケーション層ユースケース** | `inception/application-design/components.md` §2 アプリケーション層 | services.md(オーケストレーション)、component-dependency.md、data-model.md |
+| **A-N** | A-1〜A-11 | **アプリケーション層ユースケース** | `inception/application-design/components.md` §2 アプリケーション層 | services.md(オーケストレーション)、component-dependency.md、data-model.md |
 | **I-NN** | I-1〜I-11 | **インフラストラクチャ層コンポーネント** | `inception/application-design/components.md` §3 インフラ層 | component-methods.md、services.md |
 | **P-N** | P-1〜P-7 | **プレゼンテーション層ハンドラ** | `inception/application-design/components.md` §4 プレゼンテーション層 | application-design.md §4.4 API エンドポイント、component-dependency.md |
 | **S-N** | S-1〜S-4 | **共有層コンポーネント** | `inception/application-design/components.md` §5 共有層 | application-design.md §1.0(S-2 MessageCatalog 等) |

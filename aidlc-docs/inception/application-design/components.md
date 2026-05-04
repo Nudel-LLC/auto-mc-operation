@@ -2,7 +2,7 @@
 
 > **📑 ID の正本**: 本ドキュメントは **`D-NN` / `A-N` / `I-NN` / `P-N` / `S-N`** すべての **正本**(定義元)。横断的な ID マッピングは `aidlc-docs/inception/id-index.md` 参照。
 
-DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) に従い、**約 52 コンポーネント** を 5 レイヤに配置(Repository トレイトファミリー D-14 を 1 行に集約しているため、実質抽象は約 31)。
+DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) に従い、**約 53 コンポーネント** を 5 レイヤに配置(Repository トレイトファミリー D-14 を 1 行に集約しているため、実質抽象は約 32)。
 
 ## 1. ドメイン層(`crates/domain`)— 外部依存ゼロ
 
@@ -69,6 +69,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | **A-8** | `DetectAndDeclineConflictsUseCase` | U7-01〜U7-04: 決定後の重複検出 → 辞退下書き生成(Few-shot 含む) → 承認待ち通知 → 承認後送信 |
 | **A-9** | `NotifyUserUseCase` | U5-01〜U5-06: LINE Flex Message 送信 / Postback 受信ハンドリング |
 | **A-10** | `RotateGmailWatchUseCase` | U1-EC-03: Cron 起動、Watch 期限延長 |
+| **A-11** | `DeleteUserUseCase` | アカウント削除請求への対応。saga: ① OAuth revoke → ② Gmail Watch 停止 → ③ サービス所有カレンダーイベント削除 → ④ キュー打ち切り → ⑤ R2 削除 → ⑥ D1 物理削除 / 匿名化(`consents` / `audit_logs`)→ ⑦ LINE 最終通知 + チャネル停止。SLA 24h(NFR-5)。詳細仕様は `data-model.md §17` |
 
 ---
 
@@ -120,11 +121,11 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | レイヤ | 主要コンポーネント数 |
 |--------|---------------------|
 | Domain(Entity / VO / Service / Port / Error) | 20(D-1〜D-19 + D-18.5 OAuthExchanger) |
-| Application(UseCase) | 10 |
+| Application(UseCase) | 11 |
 | Infrastructure(Adapter / Service) | 11 |
 | Presentation(Handler / Worker) | 7 |
 | Shared | 4 |
-| **合計** | **52** |
+| **合計** | **53** |
 
 > Repository トレイトファミリー(D-14)を 1 行に集約しているため、**実質的なドメイン抽象は約 31**(D-1〜D-19 + D-18.5 のうち D-14 をサブトレイト分割した場合の総数)。Q1=B「ユニットに合わせて柔軟」「過細化避ける」方針に沿い、関連性の高いリポジトリは同じトレイトファミリーにまとめてある。
 

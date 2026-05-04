@@ -852,8 +852,8 @@ pub enum UserAction {
 
 本 Application Design ステージで以下が確定:
 
-- ✅ 5 レイヤ・約 52 コンポーネントの責務とインターフェース
-- ✅ 10 ユースケースのコマンド型・Result 型
+- ✅ 5 レイヤ・約 53 コンポーネントの責務とインターフェース
+- ✅ 11 ユースケースのコマンド型・Result 型
 - ✅ 7 ステップ別 Queue + DLQ + saga 補償パターン
 - ✅ **15 D1 テーブル**(うち append-only 1: `consents`)のスキーマ + 主要インデックス + マイグレーション順序
 - ✅ Webhook / 管理 API / Phase 2 ユーザー API のエンドポイント仕様

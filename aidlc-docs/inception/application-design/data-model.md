@@ -530,7 +530,7 @@ erDiagram
 
 ### 17.7 関連コンポーネント
 
-- **A-11 `DeleteUserUseCase`**(新規追加候補): 上記 §17.2 の手順を saga パターンで実行。Application Design レビュー後 components.md に追加(現時点では本セクションが仕様の一次情報源)
+- **A-11 `DeleteUserUseCase`**: 上記 §17.2 の手順を saga パターンで実行。`components.md §2` に正式登録済み
 
 ---
 
