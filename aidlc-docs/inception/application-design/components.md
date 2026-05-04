@@ -35,7 +35,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 ### Repository Traits(domain で定義、infrastructure で実装)
 | # | コンポーネント | 責務 |
 |---|--------------|------|
-| **D-14** | `UserRepository` / `CaseRepository` / `EntryRepository` / `DeclineRepository` / `MessageRepository` / `PrCorpusRepository` / `DeclineCorpusRepository` / `ConsentRepository` / `OfficeRepository` / `OfficePatternRepository` / `ClassificationRuleRepository` / `AuditLogRepository` | ドメインオブジェクトの永続化トレイト(D1 や KV の存在に依存しない) |
+| **D-14** | `UserRepository` / `CaseRepository` / `EntryRepository` / `DeclineRepository` / `MessageRepository` / `EntryCorpusRepository` / `DeclineCorpusRepository` / `ConsentRepository` / `OfficeRepository` / `OfficePatternRepository` / `ClassificationRuleRepository` / `AuditLogRepository` | ドメインオブジェクトの永続化トレイト(D1 や KV の存在に依存しない) |
 
 ### External Service Ports(F-11 抽象化レイヤ)
 | # | コンポーネント | 責務 |

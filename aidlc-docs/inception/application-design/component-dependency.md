@@ -34,7 +34,7 @@ flowchart TB
     subgraph DOM["🟨 domain (Entity / VO / Service / Port / Error)"]
         D12[OverlapDetector]
         Ports["Ports<br/>MailRepo / CalRepo<br/>NotifChan / LlmClient"]
-        Aggs["Aggregates<br/>User / Case / Entry / Decline<br/>Message / PrCorpus / DeclineCorpus"]
+        Aggs["Aggregates<br/>User / Case / Entry / Decline<br/>Message / EntryCorpus / DeclineCorpus"]
     end
 
     subgraph INF["🟥 infrastructure (Adapter)"]
@@ -84,7 +84,7 @@ flowchart TB
 
 各ユースケースが利用するドメイントレイト(各セルに ✓ がある = 依存):
 
-| UseCase / Trait | UserRepo | CaseRepo | EntryRepo | DeclineRepo | MessageRepo | PrCorpus | DeclineCorpus | ConsentRepo | OfficePat | ClassRule | AuditLog | MailPort | CalPort | NotifPort | LlmPort | OAuthPort | Crypto |
+| UseCase / Trait | UserRepo | CaseRepo | EntryRepo | DeclineRepo | MessageRepo | EntryCorpus | DeclineCorpus | ConsentRepo | OfficePat | ClassRule | AuditLog | MailPort | CalPort | NotifPort | LlmPort | OAuthPort | Crypto |
 |-----------------|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
 | A-1 OnboardUser | ✓ |   |   |   |   |   |   | ✓ |   |   | ✓ | ✓ |   |   |   | ✓ | ✓ |
 | A-2 IngestMail | ✓ |   |   |   | ✓ |   |   | ✓ |   |   | ✓ | ✓ |   |   |   |   |   |
@@ -194,7 +194,7 @@ pub enum DeclinePayload {
 | Entry | `entries`(`cases` に FK / 1 case = 1 active) | — | 履歴は `status='superseded'` |
 | Decline | `declines`(`cases` に FK / `triggered_by_kind` で分類) | — | proposed/approved/sent/failed |
 | (Case 関連) | **`calendar_events`**(`users` / `cases` / `schedules` に FK) | — | A-7 ManageCalendar が CRUD する独立テーブル(1 Case = N 候補スロット = N events) |
-| PrCorpus | `pr_corpus`(`users` に FK) | — | 本人作成・永続 |
+| EntryCorpus | `entry_corpus`(`users` に FK) | — | 本人作成・永続 |
 | DeclineCorpus | `decline_corpus`(`users` に FK) | — | 本人作成・永続 |
 | AuditLog | `audit_logs` | — | F-06 構造化ログから 12 ヶ月保管 |
 

@@ -17,7 +17,7 @@
 |------|------|------|
 | **User-facing changes** | ✅ Yes | プライマリペルソナ 2 名(P1: AI慣れ MC / P2: AI 未経験 MC)向けの LINE Bot UI を新設、Gmail 下書き連携 |
 | **Structural changes** | ✅ Yes | DDD レイヤ(domain / application / infrastructure / presentation / shared)を一から構築 |
-| **Data model changes** | ✅ Yes | D1 スキーマ(users / messages / cases / schedules / entries / calendar_events / drafts / pr_corpus / decline_corpus / consents / audit_logs / office_patterns / classification_rules)を新規定義 |
+| **Data model changes** | ✅ Yes | D1 スキーマ(users / messages / cases / schedules / entries / calendar_events / drafts / entry_corpus / decline_corpus / consents / audit_logs / office_patterns / classification_rules)を新規定義 |
 | **API changes** | ✅ Yes | LINE Webhook / Pub/Sub Push / OAuth Callback / 管理 API のエンドポイント設計 |
 | **NFR impact** | ✅ Yes | レイテンシ 5 分 / スケール 100,000 件/日 / コスト 500円/ユーザー/月 / Security Baseline + PBT 強制 |
 

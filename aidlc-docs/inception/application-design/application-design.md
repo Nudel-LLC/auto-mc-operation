@@ -299,7 +299,7 @@ Q5 = B により全列 + 制約 + 主要 IDX + マイグレーション順序を
 erDiagram
     users ||--o{ messages : "受信"
     users ||--o{ cases : "保有"
-    users ||--o{ pr_corpus : "学習元"
+    users ||--o{ entry_corpus : "学習元"
     users ||--o{ decline_corpus : "学習元"
     users ||--o{ consents : "同意履歴"
     users ||--|| oauth_tokens : "保有"
@@ -314,7 +314,7 @@ erDiagram
     classification_rules }o--|| users : "user スコープのみ"
     offices ||--o| office_patterns : "1対1"
     offices ||--o{ cases : "office_id"
-    offices ||--o{ pr_corpus : "office_id"
+    offices ||--o{ entry_corpus : "office_id"
     offices ||--o{ decline_corpus : "office_id"
 
     audit_logs }o--|| users : "操作主体"
@@ -371,7 +371,7 @@ CREATE TABLE oauth_tokens (
 -- W7 修正: SQLite には append-only 制約がないため、UPDATE/DELETE をトリガーで拒否
 CREATE TABLE consents (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id),
+    user_id TEXT REFERENCES users(id) ON DELETE NO ACTION,  -- INSERT 時はアプリ層で必須チェック、削除請求時のみ NULL 化を許可
     version TEXT NOT NULL,
     agreed_at TEXT NOT NULL,
     ip_hash TEXT,                            -- 状況証拠 / 否認防止用(SHA-256、生 IP は保存しない)
@@ -380,8 +380,10 @@ CREATE TABLE consents (
 CREATE INDEX idx_consents_user ON consents(user_id, agreed_at);
 
 -- append-only を機械的に保証するトリガー(NFR-4 SECURITY-11 監査要件)
+-- 例外: アカウント削除請求時の user_id 匿名化のみ許可(§17.3)
 CREATE TRIGGER trg_consents_no_update BEFORE UPDATE ON consents
-BEGIN SELECT RAISE(ABORT, 'consents is append-only'); END;
+WHEN NEW.user_id IS NOT NULL OR OLD.id != NEW.id OR OLD.version != NEW.version OR OLD.agreed_at != NEW.agreed_at
+BEGIN SELECT RAISE(ABORT, 'consents is append-only (only user_id anonymization allowed)'); END;
 CREATE TRIGGER trg_consents_no_delete BEFORE DELETE ON consents
 BEGIN SELECT RAISE(ABORT, 'consents is append-only'); END;
 
@@ -461,7 +463,7 @@ CREATE TABLE cases (
     pr_required INTEGER NOT NULL DEFAULT 0,
     other_conditions TEXT,
     extraction_warnings_json TEXT,           -- 欠落項目リスト
-    status TEXT NOT NULL DEFAULT 'pending',  -- pending | entered | confirmed | declined | expired
+    status TEXT NOT NULL DEFAULT 'pending',  -- pending | entered | confirmed | rejected | declined | expired
     needs_user_action INTEGER NOT NULL DEFAULT 0,  -- 0/1 status と独立。Recoverable エラー時に 1
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -502,29 +504,32 @@ CREATE INDEX idx_entries_case_active ON entries(case_id) WHERE status != 'supers
 CREATE INDEX idx_entries_status ON entries(status);
 -- 確定スロットは schedules.is_chosen = 1 を参照(複数確定対応)
 
--- 0006 declines
+-- 0006 declines (1 case = 1 active decline; 履歴は status='superseded' で append)
 CREATE TABLE declines (
     id TEXT PRIMARY KEY,
-    case_id TEXT NOT NULL REFERENCES cases(id),
+    case_id TEXT NOT NULL REFERENCES cases(id) ON DELETE CASCADE,  -- case 削除時に連動削除
     triggered_by_kind TEXT NOT NULL CHECK(triggered_by_kind IN ('case','private_event','manual')),
-    triggered_by_case TEXT REFERENCES cases(id),    -- kind='case' のときのみ NOT NULL
+    triggered_by_case TEXT REFERENCES cases(id) ON DELETE SET NULL,  -- 原因案件削除後も辞退履歴は残す
     triggered_by_note TEXT,                          -- kind='private_event' / 'manual' の理由メモ
     decline_draft TEXT NOT NULL,             -- 生成された辞退本文
     sent_message_id TEXT,
-    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','approved','sent','failed')),
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','approved','sent','failed','superseded')),
         -- proposed: 検出済み・承認待ち
         -- approved: ユーザーが LINE で承認、送信予約
         -- sent: 送信完了
         -- failed: 送信失敗(再試行待ち or 手動対応待ち)
+        -- superseded: 取り下げ後の旧履歴(append-only)
     sent_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     CHECK (
-        (triggered_by_kind = 'case' AND triggered_by_case IS NOT NULL)
+        (triggered_by_kind = 'case' AND (triggered_by_case IS NOT NULL OR triggered_by_case IS NULL))
         OR (triggered_by_kind != 'case' AND triggered_by_case IS NULL)
     )
+    -- triggered_by_case は SET NULL を許容するため insert 時のみ厳密 (kind='case' AND triggered_by_case NOT NULL) を要求
 );
 CREATE INDEX idx_declines_case ON declines(case_id);
+CREATE INDEX idx_declines_case_active ON declines(case_id) WHERE status != 'superseded';
 
 -- 0007 calendar_events
 CREATE TABLE calendar_events (
@@ -540,10 +545,10 @@ CREATE TABLE calendar_events (
 CREATE INDEX idx_calevents_case ON calendar_events(case_id);
 CREATE INDEX idx_calevents_user ON calendar_events(user_id, state);
 
--- 0008 pr_corpus / decline_corpus(本人帰属、永続)
--- pr_corpus = エントリーメール本文(全文)を Few-shot 例として保管
+-- 0008 entry_corpus / decline_corpus(本人帰属、永続)
+-- entry_corpus = エントリーメール本文(全文)を Few-shot 例として保管
 -- 案件種別の事前分類はせず、LLM(Haiku)が案件メールを読んで PR 要否と文体を判断
-CREATE TABLE pr_corpus (
+CREATE TABLE entry_corpus (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
     source_message_id TEXT,
@@ -553,7 +558,7 @@ CREATE TABLE pr_corpus (
     char_length INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX idx_pr_user_office ON pr_corpus(user_id, office_id);
+CREATE INDEX idx_entry_user_office ON entry_corpus(user_id, office_id);
 
 CREATE TABLE decline_corpus (
     id TEXT PRIMARY KEY,
@@ -877,8 +882,8 @@ pub enum UserAction {
 | `classification_rules.priority` 評価上限件数 | Unit-2: メール取込・分類 | Unit-2 Functional Design 完了時 | NFR-1(レイテンシ) | 暫定上限なし → 実測で 100 件等 |
 | ルールベース判定率(NFR-7 試算で 50% 想定) | Unit-2 | Unit-2 βテスト後の運用調整 | NFR-7(コスト) | 50%(目標)、実測キャリブレーション必要 |
 | `messages.classification_confidence` の `needs_review` 閾値 | Unit-2 | Unit-2 Functional Design 完了時 | NFR-6(信頼性) | 0.6(暫定、評価ハーネスで決定) |
-| Few-shot 採用件数(`pr_corpus` / `decline_corpus`) | Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト)/ 出力品質 | 3〜5 件(暫定) |
-| コーパス取り込み期間(`pr_corpus` / `decline_corpus` の Sent フォルダ走査窓) | Unit-1: 基盤 / Unit-5 | Unit-1 Functional Design 完了時 | D1 容量 / オンボーディング時間 / 文体新鮮さ | 直近 24 ヶ月(暫定、長期 MC のレコード爆発防止) |
+| Few-shot 採用件数(`entry_corpus` / `decline_corpus`) | Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト)/ 出力品質 | 3〜5 件(暫定) |
+| コーパス取り込み期間(`entry_corpus` / `decline_corpus` の Sent フォルダ走査窓) | Unit-1: 基盤 / Unit-5 | Unit-1 Functional Design 完了時 | D1 容量 / オンボーディング時間 / 文体新鮮さ | 直近 24 ヶ月(暫定、長期 MC のレコード爆発防止) |
 | `users.travel_buffer_minutes` のユーザー設定可能範囲 | Unit-4: カレンダー連携 | Unit-4 Functional Design 完了時 | UX | デフォルト 60 分、範囲は TBD(0〜180?) |
 | LLM 呼び出しタイムアウト | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-1 | 25 秒(暫定、`AbortSignal.timeout`) |
 | Queue リトライ回数 | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-3 | 3 回 + 指数バックオフ(暫定) |

@@ -145,7 +145,7 @@ pub trait MessageRepository: Send + Sync {
     async fn list_needs_review(&self, user_id: &UserId, limit: u32) -> Result<Vec<Message>, DomainError>;
 }
 
-// PrCorpus / DeclineCorpus / Consent / OfficePattern / ClassificationRule / AuditLog も同様の CRUD パターン
+// EntryCorpus / DeclineCorpus / Consent / OfficePattern / ClassificationRule / AuditLog も同様の CRUD パターン
 ```
 
 ---

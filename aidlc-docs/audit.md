@@ -710,3 +710,16 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (AI レビュー 6 件指摘の整流化)
 
 ---
+
+## Application Design — data-model.md 21 件レビュー対応(構造的 3 件 + 補足 15 件)
+**Timestamp**: 2026-05-04T20:30:00Z
+**User Input**: 1. rejectedを追加してください。2. はい。その方針で問題ありません。3. PR限定ではなくなったため、改名してください。4. グレースピリオドとは何でしょうか？5. 個人の複数アカウントは考えていません。事業者向けについて、私に説明してください。
+**AI Response**:
+- **A**: `cases.status` に `rejected`(事務所からの不採用通知受信)追加。既存 5 値 → 6 値(pending / entered / confirmed / **rejected** / declined / expired)
+- **B**: `declines` を 1 案件 1 active decline に整理(entries と同方針)。`status` に `superseded` 追加 + 部分インデックス、`case_id` を CASCADE、`triggered_by_case` を SET NULL に変更
+- **C**: `pr_corpus` → `entry_corpus` リネーム(全 7 ファイル一括置換: data-model / application-design / components / component-methods / component-dependency / id-index / stories / execution-plan)
+- **F-R 補足追記**: oauth_tokens.key_id (TEXT 型理由 + access_token 解説) / consents.user_id (NOT NULL → NULL 可 + 削除時匿名化トリガー条件) / messages.raw_expires_at (R2 ライフサイクル制約) / offices.display_name (管理 API 経路) / office_patterns.success_count (累積カウンタ + 母数なしを明記) / classification_rules.scope (P2-02 への紐付け) / cases.extraction_warnings_json (用途明記) / cases.needs_user_action (異常系フラグ限定明記) / calendar_events.google_event_id (手動削除時の冪等性) / entry_corpus 取り込み手法 (offices.sender_domain + Haiku 二段判別) / audit_logs.user_id / actor / target_id (主体 vs 影響 vs 対象を明確化)
+- **stories.md P2-09**: グレースピリオド項に **再登録時の整合性**(LINE で「以前のアカウントを復活しますか?」ダイアログ)を追記
+**Context**: INCEPTION - Application Design (21 コメント対応 + 構造的設計判断)
+
+---
