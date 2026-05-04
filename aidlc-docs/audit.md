@@ -474,3 +474,20 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Detailed data-model documentation created)
 
 ---
+
+## Application Design — AI レビュー反映 (PR #3 issue 4368912387)
+**Timestamp**: 2026-05-04T07:30:00Z
+**User Input**: AI 生成レビュー(/review design モード、5 視点)— Critical 1 / Warning 3 / Suggestion 3 / Note 3
+**AI Response**:
+- 🔴 D1 テーブル数 13 → 14 に修正(§8 完了基準 + §3 冒頭で統一)
+- 🟡 P-4 OnboardingHandler URL を `/onboard/start` に統一、`component-dependency.md` 依存図に P4 追加
+- 🟡 Calendar 操作名 `DeleteAll`/`DeleteAllByCase` を `DeleteAllByCase`、`slot_id` を `chosen_slot` に統一
+- 🟢 `ConsentRepo` 列を依存マトリクスに追加、A-1/A-2/A-4/A-6 に ✓
+- 🟢 D-18.5 `OAuthExchanger` ポートを新規追加(F-11 拡張性方針との整合)、コンポーネント数 51→52、実質抽象 30→31
+- 🟢 §4.3 NFR-7 コスト試算枠組み追記(トークン上限・キャッシュヒット率・概算式 → 月 ¥480 で達成見込み)
+- 💡 §4.6 STRIDE 脅威モデリング配置方針(枠組みは AD、詳細は per-unit Functional Design)を新設
+- 💡 F-3 → FR-3 表記統一(users.travel_buffer_minutes コメント、data-model.md でも反映)
+- §7.2 レビュー反映履歴を新設
+**Context**: INCEPTION - Application Design (Review Round 2 完了、再承認待ち)
+
+---

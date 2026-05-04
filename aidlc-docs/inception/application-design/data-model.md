@@ -50,7 +50,7 @@ D1(SQLite at edge)上の全 14 テーブルの詳細定義。各カラムの**�
 | `google_email` | TEXT | NOT NULL | OAuth で連携した Gmail アドレス。表示用 + 監査用(他人のメールではないことの確認) |
 | `display_name` | TEXT | NULL 可 | LINE プロフィール由来の表示名(任意、通知文の宛名等で利用) |
 | `consent_version` | TEXT | NOT NULL DEFAULT 'v1' | 現在有効な同意ポリシー版。`consents.version` と一致を確認、ポリシー更新時に再同意を促す判定に使用 |
-| `travel_buffer_minutes` | INTEGER | NOT NULL DEFAULT 60 | FR-3 移動時間バッファ(分)。ユーザー個別調整可。`OverlapDetector`(D-12)が利用 |
+| `travel_buffer_minutes` | INTEGER | NOT NULL DEFAULT 60 | **FR-3** 移動時間バッファ(分)。ユーザー個別調整可。`OverlapDetector`(D-12)が利用 |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
 **インデックス**:

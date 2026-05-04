@@ -78,6 +78,31 @@ pub trait NotificationChannel: Send + Sync {
 }
 ```
 
+### D-18.5 OAuthExchanger(F-11 ポート、Phase 3 で複数 IdP 対応)
+
+```rust
+#[async_trait]
+pub trait OAuthExchanger: Send + Sync {
+    async fn exchange_authorization_code(
+        &self,
+        code: &AuthCode,
+        redirect_uri: &str,
+    ) -> Result<OAuthTokenSet, DomainError>;
+
+    async fn refresh_access_token(
+        &self,
+        refresh_token: &SecretString,
+    ) -> Result<AccessTokenInfo, DomainError>;
+}
+
+pub struct OAuthTokenSet {
+    pub access_token: SecretString,
+    pub refresh_token: SecretString,
+    pub scope: String,
+    pub expires_in: u32,
+}
+```
+
 ### D-18 LlmClient(F-11 ポート)
 
 ```rust

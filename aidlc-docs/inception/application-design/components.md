@@ -1,6 +1,6 @@
 # Components — auto-mc-operation
 
-DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) に従い、**約 51 コンポーネント** を 5 レイヤに配置(Repository トレイトファミリー D-14 を 1 行に集約しているため、実質抽象は約 30)。
+DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) に従い、**約 52 コンポーネント** を 5 レイヤに配置(Repository トレイトファミリー D-14 を 1 行に集約しているため、実質抽象は約 31)。
 
 ## 1. ドメイン層(`crates/domain`)— 外部依存ゼロ
 
@@ -41,6 +41,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | **D-16** | `CalendarRepository`(ポート) | freeBusy 取得・イベント作成/更新/削除(Google / Outlook / Apple に共通) |
 | **D-17** | `NotificationChannel`(ポート) | メッセージ送信・ボタン操作 受信(LINE / Slack 等に共通) |
 | **D-18** | `LlmClient`(ポート) | プロンプト送信・JSON レスポンス取得(Claude / GPT / Gemini に共通) |
+| **D-18.5** | `OAuthExchanger`(ポート) | 認可コード ↔ アクセス/リフレッシュトークン交換、トークンリフレッシュ(Google OAuth / Phase 3 で Microsoft / Apple ID 等に拡張可)。F-11 拡張性方針との整合のため、application 層が直接 I-11 OAuth2Service を呼ばずポート経由で利用 |
 
 ### Domain Errors
 | # | コンポーネント | 責務 |
@@ -115,12 +116,12 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 
 | レイヤ | 主要コンポーネント数 |
 |--------|---------------------|
-| Domain(Entity / VO / Service / Port / Error) | 19 |
+| Domain(Entity / VO / Service / Port / Error) | 20(D-18.5 OAuthExchanger を追加) |
 | Application(UseCase) | 10 |
 | Infrastructure(Adapter / Service) | 11 |
 | Presentation(Handler / Worker) | 7 |
 | Shared | 4 |
-| **合計** | **51** |
+| **合計** | **52** |
 
 > Repository トレイトが 1 まとまり(D-14)で複数のサブトレイトを内包しているため、**実質的なドメイン抽象は約 30 個**。Q1=B「ユニットに合わせて柔軟」「過細化避ける」方針に沿い、関連性の高いリポジトリは同じトレイトファミリーにまとめてある。
 

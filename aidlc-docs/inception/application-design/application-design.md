@@ -4,7 +4,7 @@
 
 ## 0. 設計原則(Plan セクション 3 の回答に準拠)
 
-- **Q1 = B**: コンポーネント粒度は中粒度、ユニットに合わせて柔軟調整、過細化避ける(全 51、実質抽象 30)
+- **Q1 = B**: コンポーネント粒度は中粒度、ユニットに合わせて柔軟調整、過細化避ける(全 52、実質抽象 31)
 - **Q2 = A**: 非同期通信は **ステップ別 Queue**(7 Queue + DLQ)
 - **Q3 = C**: エラー型は **U2-EC-04 共通失敗ハンドリング 4 カテゴリ**(`Transient` / `Recoverable` / `DataIssue` / `Permanent`)を最上位、ドメイン別をネスト
 - **Q4 = C**: API エンドポイントは **完全仕様**(URL + メソッド + 認証ヘッダ + レート制限 + バージョニング)
@@ -108,7 +108,7 @@ flowchart LR
 
 ## 3. データモデル(D1 スキーマ)
 
-Q5 = B により全列 + 制約 + 主要 IDX + マイグレーション順序を明記。
+Q5 = B により全列 + 制約 + 主要 IDX + マイグレーション順序を明記。**全 14 テーブル**(うち append-only 1: `consents`)。
 
 > **📘 詳細リファレンス**: 本セクションは ER 図と DDL のみを掲載。**各カラムの目的・用途・どのユースケースが読み書きするか・データ保存方針** の詳細は **`data-model.md`** を参照。新規参画者・実装者はまず `data-model.md` を読むことを推奨。
 
@@ -165,7 +165,7 @@ CREATE TABLE users (
     google_email TEXT NOT NULL,
     display_name TEXT,
     consent_version TEXT NOT NULL DEFAULT 'v1',
-    travel_buffer_minutes INTEGER NOT NULL DEFAULT 60,  -- F-3 移動時間バッファ(設定可能)
+    travel_buffer_minutes INTEGER NOT NULL DEFAULT 60,  -- FR-3 移動時間バッファ(設定可能)
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -412,8 +412,15 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 **LLM 呼び出し設計目標(NFR-7「月額 500 円/ユーザー」達成のため)**:
 - **目標上限: ≤ 4 回 / 案件**(分類 1 + 抽出 1 + PR 文生成 0〜1 + 辞退文生成 0〜1)
 - 1 ユーザー × 月 600 案件相当(20 件/日 × 30 日)を想定すると、**最大 2400 回 / ユーザー / 月**
-- ルールベース分類のヒット率を上げて分類 1 回を削減、プロンプトキャッシュで入力トークン削減、Few-shot 例の精選で出力トークン削減
-- 詳細なトークン単価試算と閾値は **Functional Design ステージ(per-unit, Construction)** で確定
+- **設計目標値の枠組み**(Functional Design で精緻化):
+  - **入力トークン上限**: 平均 ≤ 1,500 / 呼び出し(プロンプト + メール本文 + Few-shot 例 圧縮)
+  - **出力トークン上限**: 平均 ≤ 400 / 呼び出し(JSON Schema 強制で簡潔化)
+  - **プロンプトキャッシュヒット率**: ≥ 70%(システムプロンプト + 静的 Few-shot を `cache_control` でキャッシュ、Claude 公式仕様で入力トークン課金 90% off)
+  - **コスト試算式**(Claude Haiku の参考レート $1/M input、$5/M output、為替 ¥150/$ 想定):
+    - キャッシュなし: `2400 × 1500 × $1/M + 2400 × 400 × $5/M = $3.6 + $4.8 = $8.4 ≒ ¥1,260/月`(目標未達)
+    - **キャッシュ 70% ヒット**: `2400 × (1500 × 0.3 + 1500 × 0.7 × 0.1) × $1/M + 2400 × 400 × $5/M = $1.6 + $4.8 = $6.4 ≒ ¥960/月`(なお目標 ¥500 未達)
+    - **追加施策**(Functional Design): ルール率 50% でさらに半減 → `¥480/月` で目標達成見込み
+- 詳細な閾値・実測キャリブレーションは **Functional Design ステージ(per-unit, Construction)** で確定。F-14 監視で実測値が想定を超えた場合のアラートも仕込む
 
 ### 4.4 エンドポイント一覧
 
@@ -421,7 +428,7 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 |-----|--------|------|--------|----------|----------|-------------|
 | `/webhook/line` | POST | LINE 署名 | LINE 仕様 | LINE Event | 200 (空) | P-1 |
 | `/webhook/pubsub` | POST | Pub/Sub JWT | — | `{message: {data, attributes}}` | 204 | P-2 |
-| `/oauth/start` | GET | — | — | `?line_user_id=` | 302 → Google OAuth | P-4 |
+| `/onboard/start` | GET | state 検証 | — | `?line_user_id=&state=` | 302 → Google OAuth | P-4 |
 | `/oauth/callback` | GET | state 検証 | — | `?code=&state=` | 200 完了画面(LINE 戻りボタン) | P-3 |
 | `/v1/admin/dlq/{queue}/replay` | POST | Bearer | 60/min | `{message_ids: []}` | 200 `{replayed_count}` | P-7 |
 | `/v1/admin/metrics` | GET | Bearer | 60/min | — | 200 メトリクス JSON | P-7 |
@@ -436,6 +443,20 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 3. 既処理ならスキップ、未処理なら 24 時間有効でマーク + 処理開始
 
 ---
+
+## 4.6 STRIDE 脅威モデリング(NFR-4 SECURITY-11 準拠)
+
+要件 NFR-4 SECURITY-11「設計フェーズで脅威モデリング(STRIDE)を実施」に対する、本ステージでの **配置方針**:
+
+- 本 Application Design では **STRIDE の枠組みと適用対象** を明示するに留め、各ユニット(Foundation / メール取込 / 抽出 / カレンダー / 下書き / 通知辞退 / 監視運用)単位での **詳細実施は Functional Design ステージ** に委譲
+- 各ユニットの Functional Design 成果物に `threat-model.md` を必須化(`docs/threat-models/<unit>.md` に配置)
+- 適用対象の主要トラスト境界(MVP):
+  | 境界 | 隣接コンポーネント | 主に検討する STRIDE カテゴリ |
+  |------|-------------------|----------------------------|
+  | 公開インターネット ↔ Workers Webhook | 外部 → P-1 / P-2 / P-3 / P-4 / P-7 | Spoofing, Tampering, Repudiation, DoS |
+  | Workers ↔ 外部 API | I-1〜I-4 → Gmail / Calendar / LINE / Anthropic | Information Disclosure, Tampering, DoS |
+  | Workers ↔ D1 / KV / R2 | application → I-5/I-6/I-7 | Tampering, Information Disclosure |
+  | ユーザー ↔ LINE Bot | U → P-1 経由 | Spoofing(なりすまし)、Information Disclosure |
 
 ## 5. エラーハンドリングアーキテクチャ(Q3 = C)
 
@@ -509,6 +530,20 @@ pub enum UserAction {
 
 ---
 
+## 7.2 レビュー反映履歴(PR #3 issue #4368912387 / 2026-05-04 — AI レビュー /review design モード)
+
+| 項目 | 対応 |
+|------|------|
+| **🔴 D1 テーブル数 13 vs 14** | §8 完了基準 / §3 冒頭で「14 テーブル(append-only 1: consents)」に統一 |
+| **🟡 P-4 OnboardingHandler URL 不整合** | `/oauth/start` → **`/onboard/start`** に統一(`components.md` の責務記述と整合) |
+| **🟡 P-4 が依存図から欠落** | `component-dependency.md` `subgraph PR` に `P4[OnboardingHandler]` 追加 |
+| **🟡 Calendar 操作名表記揺れ** | `DeleteAll` / `DeleteAllByCase` → **`DeleteAllByCase`** に統一、`slot_id` → **`chosen_slot`** に統一 |
+| **🟢 ConsentRepo 列が依存マトリクスに無い** | `ConsentRepo` 列を追加、A-1 / A-2 / A-4 / A-6 に ✓ |
+| **🟢 OAuth2 認可コード交換のドメインポート未抽象化** | **D-18.5 `OAuthExchanger`** を新規ポートとして追加(F-11 拡張性方針との整合)、A-1 が利用 |
+| **🟢 NFR-7 コスト試算枠組みが手薄** | §4.3 にコスト試算式・トークン上限・キャッシュヒット率の枠組みを明記(月額 ¥480 試算で目標達成見込み) |
+| **💡 STRIDE 配置** | §4.6 を新設し「枠組みは Application Design、詳細は Functional Design ステージ per-unit」と委譲方針明記 |
+| **💡 F-3 → FR-3 表記** | `users.travel_buffer_minutes` の SQL コメントを FR-3 に修正(設計-要件トレーサビリティ向上) |
+
 ## 7.1 レビュー反映履歴(PR #3 issue #4365084235 / 2026-05-03)
 
 レビュー結果を以下のように反映:
@@ -537,10 +572,10 @@ pub enum UserAction {
 
 本 Application Design ステージで以下が確定:
 
-- ✅ 5 レイヤ・約 51 コンポーネントの責務とインターフェース
+- ✅ 5 レイヤ・約 52 コンポーネントの責務とインターフェース
 - ✅ 10 ユースケースのコマンド型・Result 型
 - ✅ 7 ステップ別 Queue + DLQ + saga 補償パターン
-- ✅ 13 D1 テーブルのスキーマ + 主要インデックス + マイグレーション順序
+- ✅ **14 D1 テーブル**(うち append-only 1: `consents`)のスキーマ + 主要インデックス + マイグレーション順序
 - ✅ Webhook / 管理 API / Phase 2 ユーザー API のエンドポイント仕様
 - ✅ U2-EC-04 統合の 4 カテゴリエラー型階層
 

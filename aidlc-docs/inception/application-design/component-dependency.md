@@ -10,6 +10,7 @@ flowchart TB
         P1[LineWebhookHandler]
         P2[PubSubWebhookHandler]
         P3[OAuthCallbackHandler]
+        P4[OnboardingHandler]
         P5[QueueConsumer]
         P6[CronWorker]
         P7[AdminApi]
@@ -79,18 +80,20 @@ flowchart TB
 
 各ユースケースが利用するドメイントレイト(各セルに ✓ がある = 依存):
 
-| UseCase / Trait | UserRepo | CaseRepo | EntryRepo | DeclineRepo | MessageRepo | PrCorpus | DeclineCorpus | OfficePat | ClassRule | AuditLog | MailPort | CalPort | NotifPort | LlmPort | Crypto |
-|-----------------|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
-| A-1 OnboardUser | ✓ |   |   |   |   |   |   |   |   | ✓ | ✓ |   |   |   | ✓ |
-| A-2 IngestMail | ✓ |   |   |   | ✓ |   |   |   |   | ✓ | ✓ |   |   |   |   |
-| A-3 ClassifyMail | ✓ |   |   |   | ✓ |   |   |   | ✓ | ✓ |   |   |   | ✓ |   |
-| A-4 ExtractCase | ✓ | ✓ |   |   | ✓ |   |   | ✓ |   | ✓ |   |   |   | ✓ |   |
-| A-5 CheckAvail | ✓ | ✓ |   |   |   |   |   |   |   | ✓ |   | ✓ |   |   |   |
-| A-6 ComposeDraft | ✓ | ✓ | ✓ |   |   | ✓ |   | ✓ |   | ✓ | ✓ |   |   | ✓ |   |
-| A-7 ManageCal | ✓ | ✓ | ✓ |   |   |   |   |   |   | ✓ |   | ✓ |   |   |   |
-| A-8 DetectDecline | ✓ | ✓ | ✓ | ✓ |   |   | ✓ |   |   | ✓ | ✓ |   |   | ✓ |   |
-| A-9 NotifyUser | ✓ | ✓ |   |   |   |   |   |   |   | ✓ |   |   | ✓ |   |   |
-| A-10 RotateGmailWatch | ✓ |   |   |   |   |   |   |   |   | ✓ | ✓ |   |   |   |   |
+| UseCase / Trait | UserRepo | CaseRepo | EntryRepo | DeclineRepo | MessageRepo | PrCorpus | DeclineCorpus | ConsentRepo | OfficePat | ClassRule | AuditLog | MailPort | CalPort | NotifPort | LlmPort | OAuthPort | Crypto |
+|-----------------|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
+| A-1 OnboardUser | ✓ |   |   |   |   |   |   | ✓ |   |   | ✓ | ✓ |   |   |   | ✓ | ✓ |
+| A-2 IngestMail | ✓ |   |   |   | ✓ |   |   | ✓ |   |   | ✓ | ✓ |   |   |   |   |   |
+| A-3 ClassifyMail | ✓ |   |   |   | ✓ |   |   |   |   | ✓ | ✓ |   |   |   | ✓ |   |   |
+| A-4 ExtractCase | ✓ | ✓ |   |   | ✓ |   |   |   | ✓ |   | ✓ |   |   |   | ✓ |   |   |
+| A-5 CheckAvail | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   | ✓ |   |   |   |   |
+| A-6 ComposeDraft | ✓ | ✓ | ✓ |   |   | ✓ |   |   | ✓ |   | ✓ | ✓ |   |   | ✓ |   |   |
+| A-7 ManageCal | ✓ | ✓ | ✓ |   |   |   |   |   |   |   | ✓ |   | ✓ |   |   |   |   |
+| A-8 DetectDecline | ✓ | ✓ | ✓ | ✓ |   |   | ✓ |   |   |   | ✓ | ✓ |   |   | ✓ |   |   |
+| A-9 NotifyUser | ✓ | ✓ |   |   |   |   |   |   |   |   | ✓ |   |   | ✓ |   |   |   |
+| A-10 RotateGmailWatch | ✓ |   |   |   |   |   |   |   |   |   | ✓ | ✓ |   |   |   |   |   |
+
+**注**: A-2 IngestMail は処理開始時に最新同意確認のため `ConsentRepo` に依存(F-07 連携)。新規ポート `OAuthPort` は S2 で追加(下記)。
 
 ## 3. 通信パターン
 
@@ -134,7 +137,7 @@ pub enum ExtractPayload    { Pending { message_id: MessageId, label: Classificat
 pub enum AvailabilityPayload { Check { case_id: CaseId } }
 pub enum DraftPayload      { Compose { case_id: CaseId, chosen_slot: SlotId, requires_pr: bool } }
 pub enum NotifyPayload     { CaseSummary { case_id: CaseId } | DraftReady { case_id: CaseId, draft_id: DraftId } | DeclineProposal { proposals: Vec<DeclineDraft> } | Error { kind: ErrorKind, hint: MessageKey } }
-pub enum CalendarPayload   { RegisterTentativeAll(CaseId) | PromoteAndCleanup { case_id: CaseId, slot_id: SlotId } | DeleteAll(CaseId) }
+pub enum CalendarPayload   { RegisterTentativeAll(CaseId) | PromoteAndCleanup { case_id: CaseId, chosen_slot: SlotId } | DeleteAllByCase(CaseId) }
 pub enum DeclinePayload    { Detect { confirmed_case: CaseId, confirmed_slot: SlotId } }
 ```
 
@@ -178,4 +181,4 @@ pub enum DeclinePayload    { Detect { confirmed_case: CaseId, confirmed_slot: Sl
 
 `services.md` の Saga 図参照。`A-2 → A-3 → A-4 → A-5 → A-6 → A-9 → (Postback) → A-7` がメインフロー。
 
-決定後の補完フロー: `A-3(decision) → A-7 PromoteAndCleanup → A-8 DetectDecline → A-9 → (Postback) → A-8 send → A-7 DeleteAll(declined)`。
+決定後の補完フロー: `A-3(decision) → A-7 PromoteAndCleanup → A-8 DetectDecline → A-9 → (Postback) → A-8 send → A-7 DeleteAllByCase(declined)`。
