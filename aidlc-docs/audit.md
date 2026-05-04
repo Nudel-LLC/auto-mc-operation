@@ -509,3 +509,24 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (ID Index Index 整備で横断トレーサビリティ向上)
 
 ---
+
+## システム構成図の粒度向上 — Container Diagram + 実行モデル + パイプライン俯瞰
+**Timestamp**: 2026-05-04T09:00:00Z
+**User Input**: 「workerが全てのイベントを一身に受け取っているように見えて、混乱してました。... 構成図のコンテナの粒度をもう少し細かく書いてもらってもいいですか?」
+**AI Response**:
+- §1.2 Container Diagram を全面書き直し(粒度を細かく):
+  - Worker 内に **fetch handler / queue handler / scheduled handler** を別コンテナとして配置
+  - 内部トリガー機構(Queues / Cron)を独立サブグラフ
+  - 色分けで URL 公開・外部到達可否を視覚化
+- §1.3 実行モデル(エントリポイント種別)を新設:
+  - 3 種ハンドラの Rust コード例
+  - 比較表(URL 公開・外部到達可否・担当 P-N・主な責務)
+  - Durable Objects は別カテゴリと明記
+- §1.4 ステージパイプライン(Queue 連鎖の俯瞰)を新設:
+  - fetch / queue / scheduled ハンドラの連鎖を Mermaid で俯瞰
+  - P-5 が Queue 種別で A-3〜A-9 を切り替える点を明示
+- 既存 §1.3 Component Diagram は §1.5 に番号繰り下げ
+- §7.4 レビュー反映履歴を追加
+**Context**: INCEPTION - Application Design (構成図粒度向上、実行モデル明記)
+
+---

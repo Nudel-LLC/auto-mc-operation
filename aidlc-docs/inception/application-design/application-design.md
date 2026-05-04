@@ -57,40 +57,216 @@ flowchart TB
     style System fill:#4CAF50,stroke:#1B5E20,color:#fff
 ```
 
-### 1.2 Container Diagram(Cloudflare 配置)
+### 1.2 Container Diagram(Cloudflare 配置 — Worker のエントリポイント種別を明示)
+
+> **重要**: Worker は **3 種類のエントリポイントハンドラ**(`fetch` / `queue` / `scheduled`)を 1 つのコードベースに持ち、起動経路ごとに異なるハンドラが呼ばれる。下図ではこれらを別コンテナとして描画。
+
+```mermaid
+flowchart TB
+    subgraph EXT["🌐 外部世界"]
+        MC([👤 MC<br/>P1 / P2 ペルソナ])
+        Op([🛠️ サービス運営者])
+        Office([事務所担当者])
+        Gmail[(Gmail)]
+        Cal[(Google Calendar)]
+        LINE[(LINE Messaging API)]
+        Anthropic[(Anthropic API<br/>Claude Haiku)]
+        PubSub[(GCP Pub/Sub)]
+    end
+
+    subgraph WORKER["☁️ Cloudflare Workers(workers-rs / WASM、単一 crate)"]
+        direction TB
+        subgraph FH["📥 fetch handler<br/>HTTP 起動・URL 公開・外部からアクセス可"]
+            P1[P-1 LineWebhook<br/>POST /webhook/line]
+            P2[P-2 PubSubWebhook<br/>POST /webhook/pubsub]
+            P3[P-3 OAuthCallback<br/>GET /oauth/callback]
+            P4[P-4 Onboarding<br/>GET /onboard/start]
+            P7[P-7 AdminApi<br/>/v1/admin/*]
+        end
+
+        subgraph QH["⚡ queue handler<br/>Queues 起動・URL 無し・外部からアクセス不可"]
+            P5[P-5 QueueConsumer<br/>7 ステップ別 Consumer]
+        end
+
+        subgraph SH["⏰ scheduled handler<br/>Cron 起動・URL 無し・外部からアクセス不可"]
+            P6[P-6 CronWorker<br/>Watch更新 / cleanup / archive]
+        end
+    end
+
+    subgraph TRIG["⚡ 内部トリガー機構(Cloudflare 提供、URL 無し)"]
+        Q[Queues × 7 + DLQ × 7<br/>classify / extract / availability /<br/>draft / notify / calendar / decline]
+        Cron[Cron Triggers<br/>毎時 / 日次 / 週次]
+    end
+
+    subgraph STORAGE["💾 ストレージ・状態管理(Cloudflare)"]
+        D1[(D1<br/>SQLite at edge<br/>14 テーブル)]
+        KV[(KV<br/>冪等性キー /<br/>ルールキャッシュ)]
+        R2[(R2<br/>メール原文 30 日 /<br/>監査ログ 12 ヶ月)]
+        DO[Durable Objects<br/>per-user 状態保持<br/>hibernate 可能]
+    end
+
+    %% 外部 → fetch handler(HTTP 公開エンドポイント)
+    LINE -- HTTP POST<br/>署名検証 --> P1
+    PubSub -- HTTP POST<br/>JWT 検証 --> P2
+    MC -- OAuth 同意<br/>後リダイレクト --> P3
+    MC -- セットアップ開始 --> P4
+    Op -- Bearer 認証 --> P7
+
+    %% Office → Gmail → Pub/Sub の上流
+    Office -- 案件募集メール --> Gmail
+    Gmail -- 新着通知 --> PubSub
+
+    %% fetch handler から Queues へ enqueue(内部経路)
+    P1 -. enqueue .-> Q
+    P2 -. enqueue .-> Q
+    P3 -. enqueue .-> Q
+    P7 -. enqueue<br/>(再投入) .-> Q
+
+    %% Queues が Worker を起動(URL なし、内部機構)
+    Q -- event-trigger<br/>(バッチ単位) --> P5
+
+    %% queue handler が次ステージ Queues へ enqueue(自己循環)
+    P5 -. enqueue<br/>次ステージ .-> Q
+
+    %% Cron Triggers が scheduled handler を起動
+    Cron -- scheduled<br/>(時刻起動) --> P6
+    P6 -. enqueue<br/>(必要に応じ) .-> Q
+
+    %% Workers → ストレージ(全種類のハンドラから利用、env binding)
+    P1 <--> D1
+    P2 <--> D1
+    P3 <--> D1
+    P4 <--> D1
+    P5 <--> D1
+    P5 <--> KV
+    P5 <--> R2
+    P5 <--> DO
+    P6 <--> D1
+    P6 <--> R2
+    P7 <--> D1
+
+    %% Workers → 外部 API(発信側)
+    P1 -- 返信 / Push --> LINE
+    P3 -- token 交換 --> Gmail
+    P5 -- メール取得 / 下書き / 送信 --> Gmail
+    P5 -- freeBusy / events --> Cal
+    P5 -- Push / Reply --> LINE
+    P5 -- 分類 / 抽出 / 生成 --> Anthropic
+    P6 -- watch 更新 --> Gmail
+
+    style WORKER fill:#FFE082,stroke:#F57F17,color:#000
+    style FH fill:#C8E6C9,stroke:#2E7D32,color:#000
+    style QH fill:#FFCCBC,stroke:#D84315,color:#000
+    style SH fill:#E1BEE7,stroke:#6A1B9A,color:#000
+    style TRIG fill:#FFF59D,stroke:#F57F17,color:#000
+    style STORAGE fill:#B3E5FC,stroke:#0277BD,color:#000
+    style EXT fill:#F5F5F5,stroke:#424242,color:#000
+```
+
+**読み方のコツ**:
+- 🟢 緑(fetch handler): **インターネット経由で URL アクセスされる入口**
+- 🟠 橙(queue handler): **URL を持たず、Cloudflare Queues が Cloudflare 内部機構で起動する**
+- 🟣 紫(scheduled handler): **URL を持たず、Cloudflare Cron がスケジュール起動する**
+- 黄色(内部トリガー機構): Queues / Cron は Cloudflare が提供する起動メカニズムで、これ自体は HTTP ではない
+- 青(ストレージ): すべてのハンドラから env binding 経由でアクセス可能(設定で制限可)
+
+### 1.3 実行モデル(エントリポイントの種別)
+
+Worker は **イベントドリブンな短命 invocation のみ**で動作し、常駐プロセスは存在しない。3 種類のエントリポイント関数を 1 つのコードベース(`crates/presentation`)に持ち、起動経路により呼び出されるハンドラが切り替わる。
+
+```rust
+// 1. HTTP 起動 — 外部 URL からの fetch リクエスト
+#[event(fetch)]
+async fn fetch(req: Request, env: Env, ctx: Context) -> Result<Response, Error> { ... }
+
+// 2. Queues 起動 — Cloudflare 内部機構からの起動(URL 無し)
+#[event(queue)]
+async fn queue(batch: MessageBatch, env: Env, ctx: Context) { ... }
+
+// 3. Cron 起動 — Cloudflare スケジューラからの起動(URL 無し)
+#[event(scheduled)]
+async fn scheduled(event: ScheduledEvent, env: Env, ctx: Context) { ... }
+```
+
+**3 種ハンドラの比較**:
+
+| ハンドラ | 起動経路 | URL 公開 | 外部到達可 | 担当 P-N | 主な責務 |
+|---------|---------|---------|-----------|---------|---------|
+| **fetch** | 外部 HTTP リクエスト | ✅ あり | ✅ 可能 | P-1 / P-2 / P-3 / P-4 / P-7 | Webhook 受信、OAuth Callback、管理 API |
+| **queue** | Cloudflare Queues | ❌ 無し | ❌ 不可能 | P-5 | ステージ間の非同期処理(7 種 Queue) |
+| **scheduled** | Cloudflare Cron Triggers | ❌ 無し | ❌ 不可能 | P-6 | 定期処理(Watch 更新、cleanup、archive) |
+
+**Durable Objects は別カテゴリ**:
+- 上記 3 ハンドラとは別に、**per-user 状態保持インスタンス** として Durable Objects を使用
+- アイドル時 hibernate、必要時に自動再開(ステートフル、永続的だが料金は活動時のみ)
+- 主な用途: Gmail Watch 状態管理、レート制限カウンタ、per-user 排他制御
+
+### 1.4 ステージパイプライン(Queue 連鎖の俯瞰)
+
+ユースケース処理が複数 stage を経由する様子を、Queue 連鎖の視点で俯瞰:
 
 ```mermaid
 flowchart LR
-    subgraph CF["☁️ Cloudflare(MVP プラットフォーム)"]
-        Workers["Workers<br/>(workers-rs WASM)"]
-        D1[(D1<br/>SQLite at edge)]
-        KV[(KV<br/>idempotency / rules cache)]
-        R2[(R2<br/>mail raw 30d / Logpush 12mo)]
-        Q[Queues<br/>7 step queues + DLQ]
-        Cron[Cron Triggers]
-        DO[Durable Objects<br/>per-user state]
-    end
+    P2[P-2<br/>fetch handler<br/>POST /webhook/pubsub] --> Q1[classify_queue]
+    P1[P-1<br/>fetch handler<br/>POST /webhook/line] --> Q1
+    P1 --> Qcal[calendar_queue]
+    P1 --> Qdec[decline_queue]
 
-    subgraph GCP["🌐 GCP(Pub/Sub のみ MVP 利用)"]
-        PubSub[(Pub/Sub Topic + Sub)]
-    end
+    Q1 -- event-trigger --> P5a[P-5 Consumer<br/>A-3 ClassifyMail]
+    P5a --> Q2[extract_queue]
+    P5a --> Q5[notify_queue]
+    P5a --> Qcal
 
-    External["External APIs<br/>Gmail / Calendar / LINE / Anthropic"]
+    Q2 -- event-trigger --> P5b[P-5 Consumer<br/>A-4 ExtractCase]
+    P5b --> Q3[availability_queue]
 
-    Workers <--> D1
-    Workers <--> KV
-    Workers <--> R2
-    Workers <--> Q
-    Cron --> Workers
-    Workers <--> DO
-    Workers <--> External
-    PubSub --> Workers
+    Q3 -- event-trigger --> P5c[P-5 Consumer<br/>A-5 CheckAvailability]
+    P5c --> Q4[draft_queue]
+    P5c --> Q5
 
-    style CF fill:#FFE082,stroke:#F57F17
-    style GCP fill:#BBDEFB,stroke:#1565C0
+    Q4 -- event-trigger --> P5d[P-5 Consumer<br/>A-6 ComposeDraft]
+    P5d --> Q5
+
+    Q5 -- event-trigger --> P5e[P-5 Consumer<br/>A-9 NotifyUser]
+    P5e --> External_LINE[LINE Push 送信]
+
+    Qcal -- event-trigger --> P5f[P-5 Consumer<br/>A-7 ManageCalendar]
+    P5f --> Qdec
+
+    Qdec -- event-trigger --> P5g[P-5 Consumer<br/>A-8 DetectAndDecline]
+    P5g --> Q5
+
+    P6[P-6<br/>scheduled handler] --> Q1
+    P6 --> External_Gmail[Gmail Watch 更新]
+
+    style P1 fill:#C8E6C9
+    style P2 fill:#C8E6C9
+    style P5a fill:#FFCCBC
+    style P5b fill:#FFCCBC
+    style P5c fill:#FFCCBC
+    style P5d fill:#FFCCBC
+    style P5e fill:#FFCCBC
+    style P5f fill:#FFCCBC
+    style P5g fill:#FFCCBC
+    style P6 fill:#E1BEE7
+    style Q1 fill:#FFF59D
+    style Q2 fill:#FFF59D
+    style Q3 fill:#FFF59D
+    style Q4 fill:#FFF59D
+    style Q5 fill:#FFF59D
+    style Qcal fill:#FFF59D
+    style Qdec fill:#FFF59D
 ```
 
-### 1.3 Component Diagram
+**読み方**:
+- 🟢 緑: fetch handler(外部 HTTP 入口)
+- 🟠 橙: queue handler(P-5 が Queue 種別ごとに別ロジックを実行)
+- 🟣 紫: scheduled handler(Cron 起動)
+- 🟡 黄: Queues(URL 無し、Cloudflare 内部の配管)
+
+P-5 は単一 Worker 関数だが、`batch.queue` の値(Queue 名)で対応するユースケース(A-3〜A-9)を切り替えて実行する。
+
+### 1.5 Component Diagram
 
 `component-dependency.md` セクション 1 を参照。DDD 5 レイヤと依存方向(presentation → application → domain ← infrastructure)を厳守、`cargo deny` で機械的検証。
 
@@ -535,6 +711,23 @@ pub enum UserAction {
 | テスト・監視のスコープ(F-13/F-14) | 本ドキュメントは枠組みまで、詳細は Functional Design / Build and Test |
 
 ---
+
+## 7.4 システム構成図の粒度向上(2026-05-04)
+
+レビュー時のフィードバック「Worker が全イベントを一身に受けているように見えて混乱」「コンテナ図の粒度を細かく」に対応。
+
+主な変更:
+- §1.2 Container Diagram を全面書き直し:
+  - **fetch handler / queue handler / scheduled handler** を Worker 内の別コンテナとして可視化
+  - 内部トリガー機構(Queues / Cron)を独立サブグラフに分離
+  - URL 公開有無・外部到達可否を色分けで表現
+- §1.3 実行モデル(エントリポイント種別)を新設:
+  - 3 種ハンドラの Rust コード例(`#[event(fetch)]` / `#[event(queue)]` / `#[event(scheduled)]`)
+  - URL 公開・外部到達可否・担当 P-N の比較表
+  - Durable Objects は別カテゴリと明記
+- §1.4 ステージパイプライン(Queue 連鎖の俯瞰)を新設:
+  - fetch / queue / scheduled の各ハンドラがどう連鎖するかを Mermaid で図示
+  - P-5 が Queue 種別ごとに A-3〜A-9 を切り替える点を明記
 
 ## 7.3 ID 体系の整理(2026-05-04)
 
