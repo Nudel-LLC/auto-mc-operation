@@ -199,10 +199,14 @@
 **Type**: Enabler Story
 
 **Acceptance Criteria**:
-- **AC-1 (Bot 作成 — 環境別)**:
+- **AC-1 (Bot 作成 — 環境別 + 用途明示)**:
   - **Given** LINE Developers Console
   - **When** Messaging API チャネルを作成する
-  - **Then** **staging / production の 2 環境分** Bot を作成(誤通知防止のため)。dev は専用 Bot を作らず、開発者個人の LINE グループ(またはローカルログ出力)に向ける
+  - **Then** **staging / production の 2 環境分** Bot を作成(誤通知防止のため)
+  - **Then** 各 Bot の用途は以下:
+    - `staging` Bot: ① 統合テスト・ステージング検証(βテスター以外の開発者専用)、② **本番運用アラート配信先(運用者の LINE グループ)**(F-14 AC-2 連動。production の障害通知を staging Bot 経由で運用者へ送る分離設計)
+    - `production` Bot: エンドユーザーへの案件通知・承認ボタン送信のみ
+  - **Then** dev は専用 Bot を作らず、開発者個人の LINE グループ(またはローカルログ出力)に向ける
   - **Then** 各環境の Channel access token / Channel secret は対応する環境の Wrangler secrets に登録される
 - **AC-2 (Webhook 設定 — 仮置き、全体設計は別ステージ)**:
   - **Given** デプロイ済み Workers の Webhook エンドポイント(例: `POST /webhook/line`)
@@ -321,7 +325,7 @@
 
 **Acceptance Criteria**:
 - **AC-1 (用語の言い換え辞書 + AI への遵守強制)**:
-  - **Given** ユーザー向け文言を **メッセージ定数ファイル**(例: `crates/presentation/src/messages/ja.rs`)に集約する設計
+  - **Given** ユーザー向け文言を **メッセージ定数ファイル**(`crates/shared/src/messages/ja.rs`、`MessageCatalog`(S-2)として集約)に配置する設計(application 層からも参照されるため `crates/shared` 配置とする。F-01 AC-2 の依存方向制約により `crates/presentation` 配置は不可)
   - **When** 開発者または AI コーディングエージェントが文言を書く
   - **Then** 「OAuth 認可」「API キー」「LLM」「トークン」「エンドポイント」等の専門用語が使われていないかを `cargo deny`/カスタム lint で **CI で機械的に検出** し、含まれていればビルド失敗とする
   - **Then** 言い換え辞書(専門用語 → 平易な言い換え対応表)は `docs/messaging-conventions.md` に明記され、CLAUDE.md / AGENTS.md / `.agent/` から参照される
@@ -418,8 +422,10 @@
   - **Given** D1 に保管する OAuth リフレッシュトークン
   - **When** 永続化する
   - **Then** **Web Crypto API の AES-256-GCM** で暗号化、暗号鍵は `TOKEN_ENC_KEY`(Wrangler secrets)から取得
-  - **Then** ノンス(96-bit IV)はレコードごとにランダム生成、`additional_data` に `key_id` を含めて改ざん検知に使う
-  - **Then** 保存形式: `{key_id}:{nonce}:{ciphertext+tag}`(`key_id` で旧鍵世代を識別 → ローテーション時に旧鍵での復号フォールバックを許容)
+  - **Then** ノンス(96-bit IV)はレコードごとにランダム生成
+  - **Then** **保存形式**(W6 修正反映、`application-design.md` §7.1 / `data-model.md` §2 と整合): BLOB カラム `oauth_tokens.encrypted_refresh_token` には `{nonce(12B)}:{ciphertext+tag}` のみを格納し、**鍵世代識別子 `key_id` は独立カラム** `oauth_tokens.key_id`(TEXT)で管理(検索効率と冗長排除のため、`key_id` を信頼の単一情報源とする)
+  - **Then** 復号時は `oauth_tokens.key_id` で鍵世代を識別 → 該当世代の鍵で復号(ローテーション時の旧鍵フォールバック対応)
+  - **Note**: 改ざん検知のための AAD(additional_data)に何を含めるかは Functional Design で確定(`user_id` 等の不変識別子を採用予定。`key_id` を AAD に含めると鍵ローテーション時の取り扱いが複雑化するため独立カラム化と整合させて分離)
 - **AC-4 (ローテーション手順 — 短時間ダウンタイム許容)**:
   - **Given** あるシークレットを更新したい(漏洩疑い・定期更新)
   - **When** ローテーションを実施する
@@ -1885,6 +1891,7 @@ Q5 = B により Phase 2 はタイトルと概要のみ記述する。詳細化�
 | U1-EC-01 | FR-1 | NFR-1, NFR-8 |
 | U1-EC-02 | FR-1 | — |
 | U1-EC-03 | FR-1 | NFR-3 |
+| U2-00 | FR-2 | NFR-6, NFR-7 |
 | U2-01 | FR-2 | — |
 | U2-02 | FR-2 | — |
 | U2-03 | FR-2, FR-5 | — |
@@ -1892,6 +1899,7 @@ Q5 = B により Phase 2 はタイトルと概要のみ記述する。詳細化�
 | U2-EC-01 | FR-2 | — |
 | U2-EC-02 | FR-2 | — |
 | U2-EC-03 | FR-2 | — |
+| U2-EC-04 | FR-1〜FR-8(全エラー処理基盤) | NFR-3, NFR-8 |
 | U3-01 | FR-3 | NFR-1 |
 | U3-02 | FR-3 | NFR-6 |
 | U3-03 | FR-3 | — |
@@ -1921,11 +1929,8 @@ Q5 = B により Phase 2 はタイトルと概要のみ記述する。詳細化�
 | U7-03 | FR-7, FR-6 | — |
 | U7-04 | FR-7 | NFR-8 |
 | U7-EC-01 | FR-7, FR-5 | — |
-| U8-01 | FR-8 | NFR-4 SECURITY-08 |
-| U8-02 | FR-8 | — |
-| U8-03 | FR-8 | — |
-| U8-04 | FR-8 | — |
-| U8-EC-01 | FR-8 | — |
+
+> **注**: F8 系 Story(`U8-01〜U8-EC-01`)は **Round 6 で Phase 2 移管(P2-08 で再設計)** されたため、本トレーサビリティ表(MVP+Foundation 対象)からは除外。Phase 2 移管の経緯は `application-design.md` §7.1 / `id-index.md` §3.1 / Story 統計表 L1944「Use Case 8 = 0(Phase 2 へ移動)」を参照。
 
 ---
 
@@ -1942,9 +1947,9 @@ Q5 = B により Phase 2 はタイトルと概要のみ記述する。詳細化�
 | Use Case 6 (F6) | 6 | 5 | 0 | 1 |
 | Use Case 7 (F7) | 5 | 4 | 0 | 1 |
 | Use Case 8 (F8) | **0(Phase 2 へ移動)** | — | — | — |
-| Phase 2 | 12 (P2-02〜P2-12 概略、F8 CSV / アカウント削除高度化 / コーパス取込 / 税務 / 招待 / レポート 等。P2-01 は Round 6 で取り下げ) | — | — | — |
+| Phase 2 | 11 active + 1 retired (P2-02〜P2-12 概略 = active 11 件、F8 CSV / アカウント削除高度化 / コーパス取込 / 税務 / 招待 / レポート 等。P2-01 は Round 6 で取り下げ済 = retired 1 件) | — | — | — |
 | **合計(MVP+Foundation)** | **58** | **32** | **13** | **13** |
-| **総計(Phase 2 含む)** | **70** | — | — | — |
+| **総計(MVP+Foundation 58 + Phase 2 active 11)** | **69** | — | — | — |
 
 > レビュー反映により以下を変更:
 > - Use Case 8(請求 CSV)を **MVP → Phase 2(P2-08)へ移動**(Cl-2 D の MVP スコープ "A+B+C+D+F" に F8 が含まれていなかったため)

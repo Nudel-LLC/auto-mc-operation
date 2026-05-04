@@ -42,7 +42,7 @@
 - [x] Workspace Detection (ALWAYS)
 - [ ] Reverse Engineering (SKIP — Greenfield)
 - [x] Requirements Analysis (ALWAYS) — 2026-05-01 ユーザー承認取得
-- [x] User Stories (CONDITIONAL) — 2026-05-02 ユーザー承認取得(MVP+Foundation 58 Story)、Round 6 で Phase 2 概略 12 件追加で **総計 70 Story**(`stories.md` Phase 2 Epic 参照、P2-01 取り下げ済)
+- [x] User Stories (CONDITIONAL) — 2026-05-02 ユーザー承認取得(MVP+Foundation 58 Story)、Round 6 で Phase 2 概略 11 active(P2-02〜P2-12)+ 1 retired(P2-01 取り下げ)を追加で **総計 69 Story**(`stories.md` Phase 2 Epic 参照)
 - [x] Workflow Planning (ALWAYS) — 2026-05-02 ユーザー承認取得
 - [x] Application Design (CONDITIONAL) — 成果物 6 件(components/component-methods/services/component-dependency/data-model/application-design)+ 横断資料 1 件(`inception/id-index.md`)作成完了、ユーザー承認待ち
 - [ ] Units Generation (CONDITIONAL) — **EXECUTE**(7 ユニットに分解予定)

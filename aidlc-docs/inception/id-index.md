@@ -15,7 +15,7 @@
 | **SECURITY-NN** | SECURITY-01〜15(全 15 ルール) | セキュリティ拡張ルール(`security-baseline` Extension) | `.aidlc-rule-details/extensions/security/baseline/security-baseline.md` | requirements.md NFR-4(全 15 ルールへ参照)、application-design.md §4 / §4.6 |
 | **F-NN** | F-01〜F-14 | **Foundation Story**(基盤・最初に開発) | `inception/user-stories/stories.md` Foundation Epic セクション | application-design.md レビュー反映履歴、components.md `責務` 列の本文記述、各設計成果物 |
 | **UN-NN** | U1-01, U2-EC-04 等 | **MVP Use Case Story** | `inception/user-stories/stories.md` MVP Use Case Epic セクション(Use Case 1〜7) | components.md A-N の `責務` 列で言及、services.md オーケストレーション節 |
-| **P2-NN** | P2-02〜P2-12(P2-01 は取り下げ済) | **Phase 2 Story 概略** | `inception/user-stories/stories.md` Phase 2 Epic セクション | requirements.md §4.2、application-design.md §17、data-model.md(§17 アカウント削除 / §18 保管方針) |
+| **P2-NN** | P2-02〜P2-12(active 11 件、P2-01 は取り下げ済 = retired 1 件) | **Phase 2 Story 概略** | `inception/user-stories/stories.md` Phase 2 Epic セクション | requirements.md §4.2、application-design.md §17、data-model.md(§17 アカウント削除 / §18 保管方針) |
 | **P1 / P2(ペルソナ)** | P1, P2 | **ユーザーペルソナ**(P1: AI 慣れ / P2: AI 未経験) | `inception/user-stories/personas.md` | stories.md 構成方針、application-design.md §1.0 |
 | **D-NN** | D-1〜D-19 + D-18.5 + D-6.5 | **ドメイン層コンポーネント** | `inception/application-design/components.md` §1 ドメイン層 | component-methods.md(シグネチャ)、component-dependency.md(依存マトリクス) |
 | **A-N** | A-1〜A-11 | **アプリケーション層ユースケース** | `inception/application-design/components.md` §2 アプリケーション層 | services.md(オーケストレーション)、component-dependency.md、data-model.md |

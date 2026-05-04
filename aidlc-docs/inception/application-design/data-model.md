@@ -20,6 +20,20 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | 暗号化 | センシティブデータは **AES-256-GCM**(F-09)、`key_id` は別カラムで管理 |
 | マイグレーション | 番号付きファイル(`migrations/0001_*.sql` 〜 `0010_*.sql`)、追加のみ・破壊的変更は `_replace.sql` 形式で対応 |
 
+### スロット ID の命名規約(混乱防止)
+
+候補スロット(`Schedule` エンティティ)の一意 ID は **役割ごとに命名を分ける**(無理に統一しない、文脈で意味を伝える):
+
+| 文脈 | 命名 | 理由 |
+|------|------|------|
+| DB 物理カラム(PK) | `schedules.id` | テーブル PK の汎用命名規則 |
+| DB 物理カラム(FK) | `*.schedule_id`(例: `calendar_events.schedule_id`) | テーブル FK の汎用命名規則(`<table>_id`) |
+| ドメイン VO / Story 表記 | `slot_id` | 業務ドメインの語彙(「スロット」が募集メールの候補日に対する自然な呼称) |
+| Use case コマンド型(**確定済み**スロット限定) | `chosen_slot: SlotId` | W2 修正(`application-design.md §7.2`)、「確定済み」の意味を型 + フィールド名で表現 |
+| `OverlapStatus` enum バリアント | `slot_id` | ドメイン語彙ゆえ |
+
+`SlotId` 型は `schedules.id` の TEXT(UUID v7)のラッパー。VO / Story の `slot_id` も同型で、コード生成時は VO ↔ DB 変換層で名前が切り替わる(認知負荷を変換層に局所化)。
+
 ### テーブル一覧と所有ユースケース
 
 | テーブル | 主用途 | 主な書き込み | 主な読み取り |

@@ -784,3 +784,19 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Round 7 後続 Q&A 対応)
 
 ---
+
+## INCEPTION - Application Design (AI レビュー Round 8 / 3 ラウンド追補対応)
+**Timestamp**: 2026-05-04T23:00:00Z
+**User Input**: "AIでレビューを何回かさせました。PRについている最新10件くらいのコメントを確認し、対応していないコメントについて、対応してください。コメント内容について妥当かどうか判断し、もし妥当だと思えば修正を加えてください。"
+**AI Response**: PR #3 の 3 件の AI レビュー(#issuecomment-4374593711 / 4374628336 / 4374673847)で挙げられた合計 8 件の指摘を妥当と判断、以下を反映:
+  - **🔴 追補2-1** (F-09 AC-3 暗号化保存形式): stories.md F-09 AC-3 を W6 修正(BLOB={nonce}:{ct+tag}、key_id 独立カラム)に合わせて書き換え + AAD の取り扱いを Functional Design 委譲と明記
+  - **🟡 追補2-2** (F-08 AC-1 MessageCatalog crate): stories.md F-08 AC-1 の `crates/presentation/src/messages/ja.rs` を `crates/shared/src/messages/ja.rs` に修正(F-01 AC-2 依存方向制約と整合)
+  - **🟡 追補-1** (U2-00 / U2-EC-04 トレース欠落): stories.md トレース表に U2-00 (FR-2, NFR-6/7) と U2-EC-04 (FR-1〜FR-8 全エラー処理基盤, NFR-3/8) の 2 行を追加
+  - **🟡 追補-2** (U8 行 5 件残存): U8-01〜U8-EC-01 をトレース表から削除、代わりに「F8 系は Phase 2 移管」注記を追加(統計表 0 件と整合)
+  - **🟡 W2** (Phase 2 数値乖離): stories.md L1945 / id-index.md L18 / aidlc-state.md を「11 active + 1 retired」表記に統一、総計を 70 → 69(MVP+Foundation 58 + Phase 2 active 11)に修正
+  - **🟢 追補2-3** (スロット ID 命名混在): data-model.md §0 に「スロット ID の命名規約」表を追加(DB PK = id、FK = schedule_id、ドメイン VO/Story = slot_id、Use case 確定済 = chosen_slot)
+  - **🟢 追補2-4** (F-04 staging Bot 用途): F-04 AC-1 を AC-1 (Bot 作成 — 環境別 + 用途明示) に拡張、staging Bot に「本番運用アラート配信先」用途を明記(F-14 AC-2 連動)
+  - 残:🟡 W1 (PR 属性チェックボックス) は次回 PR 運用での扱いとする(本 PR の merge 阻害要因ではないとレビュー側も判定済)
+**Context**: INCEPTION - Application Design (AI レビュー Round 8 / 3 ラウンド累積指摘の反映)
+
+---
