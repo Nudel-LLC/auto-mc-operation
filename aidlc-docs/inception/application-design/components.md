@@ -10,7 +10,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | # | コンポーネント | 責務 |
 |---|--------------|------|
 | **D-1** | `User`(集約ルート) | ユーザーアカウント、OAuth トークン参照、同意状態、設定(移動時間バッファ等) |
-| **D-2** | `Case`(集約ルート) | 案件 1 件。所属事務所(`office_id`)・案件名・PR要素要否・締切・複数 Schedule を集約 |
+| **D-2** | `Case`(集約ルート) | 案件 1 件。所属事務所(`office_id`)・案件名・PR要素要否・締切・複数 Schedule を集約。`status` フェーズと **独立した** `needs_user_action` フラグで Recoverable エラー時のユーザー対応待ちを表現(data-model.md §8) |
 | **D-3** | `Schedule`(`Case` 内 Entity) | 候補スロット 1 つ。`{slot_id, start_at, end_at, tz, raw_text, confidence, overlap_status, is_chosen}`。1 case で 0/1/N 個が `is_chosen=1` |
 | **D-4** | `Entry`(集約ルート) | エントリー 1 件。`{case_id, draft_id, submitted_at, status: pending|submitted|confirmed|declined|superseded}`。1 case = 1 active entry(履歴は `superseded`)。確定時刻は `cases` 側で管理(冗長排除) |
 | **D-5** | `Decline`(集約ルート) | 辞退送信 1 件。`{case_id, triggered_by_kind: case|private_event|manual, triggered_by_case?, triggered_by_note?, decline_draft, status, sent_at}` |

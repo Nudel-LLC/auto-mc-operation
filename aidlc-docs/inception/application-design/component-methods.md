@@ -177,7 +177,15 @@ pub struct ClassificationOutcome {
     pub label: ClassificationLabel,
     pub by: ClassifiedBy,        // Rule | Llm
     pub confidence: f32,
-    pub next_step: Option<QueueName>,  // extract_queue / decision_queue / None
+    pub next_step: NextStep,     // recruitment → ExtractQueue / decision → NotifyAndCalendarQueues / other → None
+}
+
+/// 分類結果に応じた後続キュー投入方針(C1 修正方針)。
+/// recruitment は extract_queue へ、decision は notify_queue + calendar_queue 両方へ enqueue。
+pub enum NextStep {
+    ExtractQueue,
+    NotifyAndCalendarQueues,
+    None,
 }
 
 // A-4

@@ -109,7 +109,7 @@ sequenceDiagram
 | A-2 IngestMail | ✅ Done | — |
 | A-3 ClassifyMail | ✅ Done | — |
 | A-4 ExtractCase | ✅ Done(case 保存済) | — |
-| A-5 CheckAvailability | ❌ Failed(`Recoverable`) | ① `cases.status = pending_user_action` に設定<br>② A-9 経由で「再連携」ボタン通知<br>③ ユーザー再認可後、A-5 を再実行(`availability_queue` に再投入) |
+| A-5 CheckAvailability | ❌ Failed(`Recoverable`) | ① `cases.needs_user_action = 1` に設定(`status` は変更しない、フェーズと独立)<br>② A-9 経由で「再連携」ボタン通知<br>③ ユーザー再認可後、A-5 を再実行(`availability_queue` に再投入)、復旧時に `needs_user_action = 0` に戻す |
 
 **例: A-6 で Gmail 下書き作成失敗(`Transient`)**
 

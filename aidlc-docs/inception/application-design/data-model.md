@@ -233,6 +233,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | `other_conditions` | TEXT | NULL 可 | 衣装・持ち物・年齢制限など自由記述条件 |
 | `extraction_warnings_json` | TEXT | NULL 可 | 必須項目欠落時の警告内容(JSON) |
 | `status` | TEXT | NOT NULL DEFAULT 'pending' | **案件のワークフロー状態**: `pending`(抽出済 / 未エントリー)/ `entered`(**エントリー下書き作成済**、辞退下書きは含まない)/ `confirmed`(事務所決定通知受信)/ `declined`(辞退送信完了)/ `expired`(締切超過)。`entries.status` は **「ユーザーの行動」状態**(下書き / 送信 / 承認待ち)を表すのに対し、こちらは **「案件全体」のフェーズ**を表す。辞退ワークフローの詳細状態(承認待ち等)は `declines.status` で別途管理 |
+| `needs_user_action` | INTEGER | NOT NULL DEFAULT 0 | 0/1。`status` とは独立した **ユーザー対応待ちフラグ**。Recoverable エラー(OAuth 失効・カレンダー再連携必要 等)発生時に `1` を立て、復旧後に `0` に戻す。`status` のフェーズ遷移と並行して立つため `status` の値域には含めない(application-design.md §5.2 のエラーカテゴリ別ハンドリング参照) |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
 **インデックス**:

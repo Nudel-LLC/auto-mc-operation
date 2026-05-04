@@ -208,8 +208,7 @@ async fn scheduled(event: ScheduledEvent, env: Env, ctx: Context) { ... }
 ```mermaid
 flowchart LR
     P2[P-2<br/>fetch handler<br/>POST /webhook/pubsub] --> Q1[classify_queue]
-    P1[P-1<br/>fetch handler<br/>POST /webhook/line] --> Q1
-    P1 --> Qcal[calendar_queue]
+    P1[P-1<br/>fetch handler<br/>POST /webhook/line] --> Qcal[calendar_queue]
     P1 --> Qdec[decline_queue]
 
     Q1 -- event-trigger --> P5a[P-5 Consumer<br/>A-3 ClassifyMail]
@@ -463,6 +462,7 @@ CREATE TABLE cases (
     other_conditions TEXT,
     extraction_warnings_json TEXT,           -- 欠落項目リスト
     status TEXT NOT NULL DEFAULT 'pending',  -- pending | entered | confirmed | declined | expired
+    needs_user_action INTEGER NOT NULL DEFAULT 0,  -- 0/1 status と独立。Recoverable エラー時に 1
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -572,7 +572,7 @@ CREATE TABLE audit_logs (
     id TEXT PRIMARY KEY,
     user_id TEXT,                            -- system 操作のときは NULL
     actor TEXT NOT NULL,                     -- 'user:{id}' | 'system' | 'admin:{id}'
-    action_source TEXT NOT NULL,             -- 'line_postback' | 'cron' | 'pubsub_push' | 'admin_api' | 'internal'
+    action_source TEXT NOT NULL CHECK(action_source IN ('line_postback','line_message','cron_trigger','pubsub_push','admin_api','internal')),
     action TEXT NOT NULL,                    -- e.g. 'classify_mail.success' | 'decline.send.failed'
     target_kind TEXT,                        -- 'message' | 'case' | 'entry' | 'decline' | ...
     target_id TEXT,
@@ -682,8 +682,11 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
 
 ### 5.1 エラー型階層
 
+**シリアライズ規約**: `DomainError` の variant 名(`Transient` / `Recoverable` / `DataIssue` / `Permanent`、PascalCase)を **DB 永続化時 `serde(rename_all = "snake_case")` で `transient` / `recoverable` / `data_issue` / `permanent` に変換** する。`audit_logs.error_kind` / `messages.classification` 等の TEXT カラムはすべてこの規約で統一(SECURITY-15 4 カテゴリと整合)。`S-3 ErrorClassifier`(components.md)が変換責務を持つ。
+
 ```rust
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
 pub enum DomainError {
     #[error("transient: {source:?}")]
     Transient { source: TransientCause, retryable: bool },
@@ -718,7 +721,7 @@ pub enum UserAction {
 | カテゴリ | Queue 動作 | LINE 通知 | 監査ログ | 例 |
 |---------|-----------|----------|---------|-----|
 | Transient | 自動リトライ(3 回 / 指数バックオフ)→ 失敗時 DLQ | 連続失敗時のみ運用者通知 | `error_kind=transient` | LLM タイムアウト、API レート制限 |
-| Recoverable | 即時 DLQ なし、`needs_user_action` フラグ立て | ユーザーに復旧ボタン送付 | `error_kind=recoverable` | OAuth 失効 |
+| Recoverable | 即時 DLQ なし、`cases.needs_user_action = 1` フラグ立て(`status` とは独立、data-model.md §8 参照) | ユーザーに復旧ボタン送付 | `error_kind=recoverable` | OAuth 失効 |
 | DataIssue | リトライしない、`needs_review` フラグ立て | ユーザーに原文確認依頼 | `error_kind=data_issue` | 必須項目欠落 |
 | Permanent | 即時 DLQ + 運用者通知 | 控えめ(混乱回避) | `error_kind=permanent`, `audit_required=true` | プロンプト不備、仕様外メール |
 

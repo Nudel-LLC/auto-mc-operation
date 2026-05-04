@@ -694,3 +694,19 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - User Stories / Application Design (Phase 2 管理体系の整備)
 
 ---
+
+## Application Design — AI レビュー(#issuecomment-4372998239)対応 8 件
+**Timestamp**: 2026-05-04T19:00:00Z
+**User Input**: 以下のAIレビューを確認し、妥当だと思う点は修整してください。なお、このコメントに書いてあるapproveはAIの意見であり、わたしはまだレビュー中なので次の段階には進まないでください。
+**AI Response**:
+- **W1** cases.status ENUM 不整合 + pending_user_action 創作: data-model.md `cases` に **`needs_user_action INTEGER` 列を新設**、application-design.md DDL も同期。services.md §4 の `cases.status = pending_user_action` を `cases.needs_user_action = 1` に修正、application-design.md §5.2 も同名フラグを参照、components.md D-2 で「status と独立」を明記
+- **W2** component-methods.md:180 stale decision_queue: `pub next_step: Option<QueueName>` を `pub next_step: NextStep` の独自 enum 化(`ExtractQueue / NotifyAndCalendarQueues / None`)、コメントを C1 修正方針に更新
+- **S2** id-index.md `Implements` 行ハルシネーション: F-NN / UN-NN 行の参照記述を「components.md `責務` 列の本文記述」「services.md オーケストレーション節」に修正(実態合わせ)
+- **N3** audit_logs.action_source ENUM 不整合: application-design.md DDL に **CHECK 制約**を追加、`'line_postback' | 'line_message' | 'cron_trigger' | 'pubsub_push' | 'admin_api' | 'internal'` の 6 値で data-model.md と統一
+- **N4** requirements.md L173 / L363 の P2-08 直接参照: `Phase 2 で再実装(対応 Story は stories.md Phase 2 Epic で確定)` の表現に書き換え、Story ID への直接依存を解消
+- **N5** SECURITY-11 / SECURITY-14 の章節番号参照: 「STRIDE 脅威モデリング」節 / 「運用アラート閾値 TBD」のように節タイトル参照に置換
+- **N6** SECURITY-15 シリアライズ規約: application-design.md §5.1 に `serde(rename_all = "snake_case")` + `tag = "kind"` を追加、PascalCase Rust enum ↔ snake_case DB 文字列の変換規約を明記、S-3 ErrorClassifier の責務として位置付け
+- **N1** §1.4 Mermaid P-1 → Q1 経路: services.md §3 で classify_queue Producer に LINE 起点なし → Mermaid 図の該当矢印を削除
+**Context**: INCEPTION - Application Design (AI レビュー 6 件指摘の整流化)
+
+---

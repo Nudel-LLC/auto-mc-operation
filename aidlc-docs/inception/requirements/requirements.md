@@ -170,7 +170,7 @@
   - ユーザー承認後に Gmail API で送信
 
 ### FR-8: 請求 CSV エクスポート(**Phase 2 移行 — MVP では非対応**)
-> **重要**: 本機能は MVP スコープ(Cl-2 D = A+B+C+D+F)に含まれず、**Phase 2 で `stories.md` P2-08 として実装** される。以下の仕様は Phase 2 開始時の参考として維持(ボタンのみ UX で再設計予定)。
+> **重要**: 本機能は MVP スコープ(Cl-2 D = A+B+C+D+F)に含まれず、**Phase 2 で再実装** される(対応 Story は `stories.md` Phase 2 Epic で確定。本書執筆時点では P2-08)。以下の仕様は Phase 2 開始時の参考として維持(ボタンのみ UX で再設計予定)。
 
 
 - **要件**:
@@ -209,10 +209,10 @@
 - **SECURITY-08**: アプリレベル認可(JWT / セッション)、CORS は明示オリジンのみ
 - **SECURITY-09**: 本番エラーレスポンスにスタックトレース等を含めない、デフォルト認証情報排除
 - **SECURITY-10**: `Cargo.lock` コミット、`cargo audit` を CI に組込み、SBOM 生成、Docker `latest` 禁止
-- **SECURITY-11**: 設計フェーズで脅威モデリング(STRIDE)を実施(枠組みは `application-design.md` §4.6、各ユニットの Functional Design ステージで詳細実施)
+- **SECURITY-11**: 設計フェーズで脅威モデリング(STRIDE)を実施(枠組み・ユニット別マイルストーンは `application-design.md` の「STRIDE 脅威モデリング」節、各ユニットの Functional Design ステージで詳細実施)
 - **SECURITY-12**: 認証・資格情報管理 — OAuth リフレッシュトークンは AES-256-GCM 暗号化(F-09 / `oauth_tokens` テーブル)、Anthropic / LINE / Google の API キー類はすべて Wrangler secrets、ハードコード禁止 lint で機械的検証(F-08)
 - **SECURITY-13**: ソフトウェア・データ完全性 — `Cargo.lock` 必須コミット、CI で `cargo audit` 実行、**Worker WASM ビルド成果物のチェックサム検証**(GitHub Actions で SHA-256 を artifact に添付し、`wrangler deploy` 前に照合)、デプロイは GitHub Actions の信頼済 Workflow からのみ(branch protection + 環境別トークン分離、SECURITY-10 と相互補完)
-- **SECURITY-14**: アラートと監視 — `application-design.md` §1.4 / F-14 の監視枠組みに従い、Worker invocation 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト超過 を運用者 LINE グループへリアルタイムアラート(F-06 構造化ログを起点)
+- **SECURITY-14**: アラートと監視 — F-14(stories.md)の監視枠組みおよび `application-design.md` の運用アラート閾値 TBD に従い、Worker invocation 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト超過 を運用者 LINE グループへリアルタイムアラート(F-06 構造化ログを起点)
 - **SECURITY-15**: 例外ハンドリング・フェイルセーフ既定 — 失敗時は **以下 4 カテゴリに分類** し、デフォルトでは「ユーザーへ被害を及ぼさない」方向に倒す:
   - **Transient**: 一時的、自動リトライで回復(API 5xx / レート制限 / ネットワーク)
   - **Recoverable**: ユーザー操作で回復(OAuth 失効はメール処理を自動停止し再認可待ち)
@@ -360,7 +360,7 @@
 | Q17/Cl-7 抽出項目 | A,B,C,F,G + 案件名/PR要素/その他 | FR-2 |
 | Q18 重複判定 | C: 部分+バッファ | FR-3, NFR-6 |
 | Q19/Cl-1 PR 文元データ | A: 過去メール学習のみ | FR-4 |
-| Q20 CSV 内容 | B: 基本+ステータス | FR-8(**Phase 2 へ移動**: stories.md P2-08 で再設計) |
+| Q20 CSV 内容 | B: 基本+ステータス | FR-8(**Phase 2 へ移動**: 対応 Story は stories.md Phase 2 Epic で確定) |
 | Q21 Security 拡張 | A: Yes 強制 | NFR-4, 9 |
 | Q22 PBT 拡張 | A: Yes 強制 | NFR-6, 9 |
 
