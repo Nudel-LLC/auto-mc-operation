@@ -723,3 +723,25 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (21 コメント対応 + 構造的設計判断)
 
 ---
+
+## Application Design — MVP 再登録不都合検証 + P2-01 取り下げ
+**Timestamp**: 2026-05-04T21:00:00Z
+**User Input**: グレースピリオドはその方針でよい / MVP段階では即時削除も同意 / MVPで即時削除した後に再度ユーザー登録をすると、何か不都合が生じないか確認してほしい / P2-01 を取り下げて構いません。
+**AI Response**:
+- **MVP 即時削除 → 再登録の不都合検証**: §17.2 の 7 ステップを再登録シナリオで検証、2 件の対策必要箇所を発見
+  - **X (削除中 race condition)**: 削除 saga 実行中(SLA 24h)に Webhook / Queue 処理が部分削除データを参照する可能性 → **`users.deletion_started_at` カラム新設** + **§17.2 Step 0 として削除予約マークを最初に立てる**(以降全処理を拒否)で対策
+  - **Y (キュー in-flight メッセージのフェイルセーフ)**: Cloudflare Queues の ack/nack 制約で削除中 in-flight メッセージが残る → **Queue Consumer に「user 不存在 or deletion_started_at IS NOT NULL → warn ログ + ack」のフェイルセーフ追加**
+  - その他のステップは UNIQUE 制約 + 新 UUID 発行 + 24 ヶ月窓フィルタで再登録時の衝突なし(検証 OK)
+- **data-model.md §1 users**: `deletion_started_at` カラム追加
+- **data-model.md §17.2**: Step 0(削除予約マーク)を追加、Queue Consumer 共通フェイルセーフを明記
+- **application-design.md §3.3 DDL**: users テーブルに deletion_started_at 列追加
+- **components.md A-11**: saga 説明に Step 0 を追加
+- **P2-01 取り下げ**:
+  - stories.md L1849: `~~P2-01~~ マルチテナント認証(取り下げ済み)` でマーク + 取り下げ理由記載(個人 MC 向け集中、id-index.md §2「番号永久不変」ルール準拠で番号は欠番保持)
+  - stories.md Phase 2 Epic タイトルを「マルチテナント・拡張機能」→「拡張機能」に変更
+  - id-index.md §1 P2-NN 範囲を `P2-02〜P2-12(P2-01 は取り下げ済)` に更新
+  - data-model.md §17.6 / §19 の P2-01 参照を取り下げ表示に変更
+  - requirements.md §3.2 / §4.2 で P2-01 関連記述を「取り下げ済み」に更新
+**Context**: INCEPTION - Application Design (再登録不都合の対策 + Phase 2 スコープ縮小)
+
+---

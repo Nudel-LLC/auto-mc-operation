@@ -347,7 +347,8 @@ CREATE TABLE users (
     google_email TEXT NOT NULL,
     display_name TEXT,
     consent_version TEXT NOT NULL DEFAULT 'v1',
-    travel_buffer_minutes INTEGER NOT NULL DEFAULT 60,  -- FR-3 移動時間バッファ(設定可能)
+    travel_buffer_minutes INTEGER NOT NULL DEFAULT 60,
+    deletion_started_at TEXT,                -- 削除予約マーク。NULL 以外なら削除処理中(全処理拒否)  -- FR-3 移動時間バッファ(設定可能)
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

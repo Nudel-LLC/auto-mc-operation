@@ -54,6 +54,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | `display_name` | TEXT | NULL 可 | LINE プロフィール由来の表示名(任意、通知文の宛名等で利用) |
 | `consent_version` | TEXT | NOT NULL DEFAULT 'v1' | 現在有効な同意ポリシー版。`consents.version` と一致を確認、ポリシー更新時に再同意を促す判定に使用 |
 | `travel_buffer_minutes` | INTEGER | NOT NULL DEFAULT 60 | **FR-3** 移動時間バッファ(分)。ユーザー個別調整可。`OverlapDetector`(D-12)が利用 |
+| `deletion_started_at` | TEXT | NULL 可 | アカウント削除請求受付時刻。**NULL 以外の場合は削除処理中とみなし、全 Webhook / キュー処理を拒否**(§17.2 Step 0)。削除完了時に当該行が物理削除されるため通常は NULL |
 | `created_at` / `updated_at` | TEXT | NOT NULL | 作成・更新時刻 |
 
 **インデックス**:
@@ -500,6 +501,7 @@ erDiagram
 
 | # | 操作 | 対象 | 失敗時の補償 |
 |---|------|------|-------------|
+| **0** | **削除予約マーク** | `users.deletion_started_at = now()` を即時 SET。これ以降、全 Webhook ハンドラ(P-1 / P-2)と全 Queue Consumer(P-5)は **`deletion_started_at IS NOT NULL` を検出した時点で処理を拒否**(LINE には「アカウント削除処理中です」を返す)→ 削除処理中の race condition を防止 | リトライ不要(原子的 UPDATE) |
 | 1 | OAuth トークン無効化 | Google OAuth でリフレッシュトークンを `revoke` | リトライ 3 回 → 失敗ログ + 続行(7 で再試行) |
 | 2 | Gmail Watch 解除 | Gmail API `users.stop` | 同上 |
 | 3 | サービス所有カレンダーイベント削除 | Google Calendar 上の `[仮]` / `[確定]` で本サービスが作成したイベント全件(`calendar_events` を起点に) | リトライ 3 回 → 失敗時は手動削除依頼を audit_logs に記録 |
@@ -507,6 +509,11 @@ erDiagram
 | 5 | R2 オブジェクト削除 | `messages/{user_id}/*` の `.eml` 全件 | リトライ + ライフサイクルでの最終削除に委譲 |
 | 6 | D1 物理削除 / 匿名化(§17.3) | 下記表に従う | トランザクションで一括 |
 | 7 | LINE Bot 最終通知 → チャネル停止 | 「削除完了しました」を Push、その後の送信を停止 | — |
+
+**Step 0 / Queue Consumer 共通フェイルセーフ**(MVP 必須):
+- 全 Queue Consumer(P-5)は、メッセージ処理時に `users.id` の存在を確認し、**該当 user 不存在 or `deletion_started_at IS NOT NULL` の場合は `warn` ログ出力 + ack(正常終了)**
+- これにより削除処理中の in-flight キューメッセージ(Cloudflare Queues は ack/nack されるまで再配送される)が DLQ にノイズを積むのを防止
+- 削除処理中の Webhook ハンドラ(P-1 / P-2)は同条件で `200 OK + 「処理中」テキスト` を返却(LINE 側の再配送を抑制)
 
 ### 17.3 D1 テーブル別の削除処理
 
@@ -551,7 +558,7 @@ erDiagram
 - R2 アーカイブのライフサイクル設定(法令変更時の保管期限短縮)
 - R2 上の `audit_logs` アーカイブ NDJSON 内 `user_id` の月次匿名化 Cron
 
-マルチテナント対応時の事業者単位の一括削除は `[Phase 2: P2-01]` マルチテナント認証 のスコープ。
+~~マルチテナント対応時の事業者単位の一括削除~~(**P2-01 取り下げ済み**、本サービスは個人 MC 向けに集中)。
 
 ### 17.7 関連コンポーネント
 
@@ -593,7 +600,7 @@ erDiagram
 
 | テーブル / 機能 | 用途 | 紐付く Story |
 |---------|------|------|
-| `tenants` | マルチテナント識別 | `[Phase 2: P2-01]` マルチテナント認証 |
+| ~~`tenants`~~ | ~~マルチテナント識別~~ | **`[Phase 2: P2-01]` 取り下げ済み**(個人 MC 向けに集中) |
 | `subscriptions` | Stripe 課金管理 | `[Phase 2: P2-03]` 課金システム |
 | `mail_provider_accounts` | Outlook / IMAP 等の追加メール連携 | `[Phase 2: P2-05]` Gmail 以外のメール対応 |
 | `calendar_provider_accounts` | Apple Calendar / Outlook Calendar 連携 | `[Phase 2: P2-06]` Google Calendar 以外対応 |
