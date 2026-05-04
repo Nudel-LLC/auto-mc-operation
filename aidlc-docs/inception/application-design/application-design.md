@@ -875,6 +875,7 @@ pub enum UserAction {
 | ルールベース判定率(NFR-7 試算で 50% 想定) | Unit-2 | Unit-2 βテスト後の運用調整 | NFR-7(コスト) | 50%(目標)、実測キャリブレーション必要 |
 | `messages.classification_confidence` の `needs_review` 閾値 | Unit-2 | Unit-2 Functional Design 完了時 | NFR-6(信頼性) | 0.6(暫定、評価ハーネスで決定) |
 | Few-shot 採用件数(`pr_corpus` / `decline_corpus`) | Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト)/ 出力品質 | 3〜5 件(暫定) |
+| コーパス取り込み期間(`pr_corpus` / `decline_corpus` の Sent フォルダ走査窓) | Unit-1: 基盤 / Unit-5 | Unit-1 Functional Design 完了時 | D1 容量 / オンボーディング時間 / 文体新鮮さ | 直近 24 ヶ月(暫定、長期 MC のレコード爆発防止) |
 | `users.travel_buffer_minutes` のユーザー設定可能範囲 | Unit-4: カレンダー連携 | Unit-4 Functional Design 完了時 | UX | デフォルト 60 分、範囲は TBD(0〜180?) |
 | LLM 呼び出しタイムアウト | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-1 | 25 秒(暫定、`AbortSignal.timeout`) |
 | Queue リトライ回数 | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-3 | 3 回 + 指数バックオフ(暫定) |

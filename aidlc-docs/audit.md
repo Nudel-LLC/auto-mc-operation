@@ -654,3 +654,17 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (data-model.md フォローアップレビュー対応)
 
 ---
+
+## Application Design — pr_corpus / decline_corpus 取り込み期間制限を追加
+**Timestamp**: 2026-05-04T18:25:00Z
+**User Input**: 全件取得だと、mc歴が長い方のレコード数が膨大になりそうですが、期間を絞ったりは考えていないのでしょうか？辞退の方も同様です
+**AI Response**:
+- data-model.md §13 / §14 に **直近 24 ヶ月の取り込み窓** を明記
+  - 理由: 長期 MC ユーザー(歴 10 年以上)の Sent 数千件取込み → D1 容量 / オンボーディング時間 / 文体経時変化のリスク
+  - 24 ヶ月で 1 ユーザー最大 ~500 行(月 20 件 × 24 ヶ月)→ Few-shot として十分 + D1 容量問題なし
+- §18 保管期間表を更新: 「取り込み窓: 直近 24 ヶ月 / 取り込み後は永続」
+- application-design.md §9 TBD 表に **「コーパス取り込み期間」** を追加(Unit-1 Functional Design で確定)
+- Phase 2 拡張: ユーザー設定で期間変更可 + 古いコーパスは R2 アーカイブ
+**Context**: INCEPTION - Application Design (コーパス取り込み期間制限の追加)
+
+---
