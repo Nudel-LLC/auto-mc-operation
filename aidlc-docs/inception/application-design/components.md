@@ -60,7 +60,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 |---|--------------|------|
 | **A-1** | `OnboardUserUseCase` | F-03 / F-07: OAuth 連携 + 同意取得 + 初期セットアップ(Watch 登録・Pub/Sub 設定) |
 | **A-2** | `IngestMailUseCase` | U1-01: Gmail Push 通知 → メッセージ取得 → `messages` 保存 → `classify_queue` 投入 |
-| **A-3** | `ClassifyMailUseCase` | U1-02: ルールベース判定 → 不能なら Haiku 呼び出し → 結果保存 → `extract_queue`(recruitment) / `decision_queue`(decision) 投入 |
+| **A-3** | `ClassifyMailUseCase` | U1-02: ルールベース判定 → 不能なら Haiku 呼び出し → 結果保存 → `extract_queue`(recruitment 時)/ `notify_queue` + `calendar_queue` 両方(decision 時。services.md §3 参照)に enqueue |
 | **A-4** | `ExtractCaseUseCase` | U2-01〜U2-04: 案件情報抽出 → schedules 配列化 → `cases`/`schedules` 保存 → `availability_queue` 投入 |
 | **A-5** | `CheckAvailabilityUseCase` | U3-01〜U3-04: freeBusy 取得 → OverlapDetector → 結果集約 → `notify_queue` 投入 |
 | **A-6** | `ComposeEntryDraftUseCase` | U4-01〜U4-04: PR 要素判定 → Few-shot 取得 → Haiku 生成 → Gmail 下書き作成 → `notify_queue` 投入 |
@@ -118,7 +118,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 
 | レイヤ | 主要コンポーネント数 |
 |--------|---------------------|
-| Domain(Entity / VO / Service / Port / Error) | 20(D-18.5 OAuthExchanger を追加) |
+| Domain(Entity / VO / Service / Port / Error) | 20(D-1〜D-19 + D-18.5 OAuthExchanger) |
 | Application(UseCase) | 10 |
 | Infrastructure(Adapter / Service) | 11 |
 | Presentation(Handler / Worker) | 7 |

@@ -211,9 +211,14 @@
 - **SECURITY-10**: `Cargo.lock` コミット、`cargo audit` を CI に組込み、SBOM 生成、Docker `latest` 禁止
 - **SECURITY-11**: 設計フェーズで脅威モデリング(STRIDE)を実施(枠組みは `application-design.md` §4.6、各ユニットの Functional Design ステージで詳細実施)
 - **SECURITY-12**: 認証・資格情報管理 — OAuth リフレッシュトークンは AES-256-GCM 暗号化(F-09 / `oauth_tokens` テーブル)、Anthropic / LINE / Google の API キー類はすべて Wrangler secrets、ハードコード禁止 lint で機械的検証(F-08)
-- **SECURITY-13**: ソフトウェア・データ完全性 — `Cargo.lock` 必須コミット、CI で `cargo audit` 実行、Wrangler 配布物の subresource integrity(SRI)対応、デプロイは GitHub Actions の信頼済 Workflow からのみ(SECURITY-10 と相互補完)
+- **SECURITY-13**: ソフトウェア・データ完全性 — `Cargo.lock` 必須コミット、CI で `cargo audit` 実行、**Worker WASM ビルド成果物のチェックサム検証**(GitHub Actions で SHA-256 を artifact に添付し、`wrangler deploy` 前に照合)、デプロイは GitHub Actions の信頼済 Workflow からのみ(branch protection + 環境別トークン分離、SECURITY-10 と相互補完)
 - **SECURITY-14**: アラートと監視 — `application-design.md` §1.4 / F-14 の監視枠組みに従い、Worker invocation 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト超過 を運用者 LINE グループへリアルタイムアラート(F-06 構造化ログを起点)
-- **SECURITY-15**: 例外ハンドリング・フェイルセーフ既定 — 失敗時は U2-EC-04 4 カテゴリ(`Transient` / `Recoverable` / `DataIssue` / `Permanent`)に分類しデフォルトでは「ユーザーへ被害を及ぼさない」方向に倒す。OAuth 失効はメール処理を自動停止し再認可待ち(`Recoverable`)、LLM 異常時は `needs_review` フラグで人間レビューに回す(`DataIssue`)。詳細は `application-design.md` §5
+- **SECURITY-15**: 例外ハンドリング・フェイルセーフ既定 — 失敗時は **以下 4 カテゴリに分類** し、デフォルトでは「ユーザーへ被害を及ぼさない」方向に倒す:
+  - **Transient**: 一時的、自動リトライで回復(API 5xx / レート制限 / ネットワーク)
+  - **Recoverable**: ユーザー操作で回復(OAuth 失効はメール処理を自動停止し再認可待ち)
+  - **DataIssue**: データ不備、人手確認(LLM 異常時は `needs_review` フラグで人間レビューに回す)
+  - **Permanent**: 回復不能、運用者通知(プロンプト不備・仕様外メール等)
+  - 詳細は `application-design.md` §5、業務フローでの具体化は `stories.md` の U2-EC-04(共通失敗ハンドリング基盤 Story)を参照
 
 ### NFR-5: プライバシー・データ保存(個情法・電気通信事業法対応)
 - **保存方針(ハイブリッド)**:

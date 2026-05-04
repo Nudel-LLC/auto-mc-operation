@@ -709,7 +709,7 @@ pub enum UserAction {
 
 ## 6. テスト戦略との接続
 
-- **F-13 + Q8 = A**: ドメインポート(`MailRepository` / `CalendarRepository` / `NotificationChannel` / `LlmClient`)に対するモックを `crates/shared/test_support` に集約
+- **F-13 + Q8 = A**: ドメインポート D-15〜D-18.5(`MailRepository` / `CalendarRepository` / `NotificationChannel` / `LlmClient` / `OAuthExchanger`)に対するモックを `crates/shared/test_support` に集約
 - **PBT 対象**:
   - `OverlapDetector::check`(`proptest` で乱数生成した時間範囲の対称性・推移性)
   - シリアライズ往復(`Case`/`Schedule`/`Entry` の JSON ↔ Rust 型)
@@ -729,6 +729,23 @@ pub enum UserAction {
 
 ---
 
+## 7.6 レビュー反映履歴(PR #3 issue #4369941466 / 2026-05-04 — AI Phase 3 design-mode `--since=4369241311` 再レビュー)
+
+前回 Round 2 の指摘 13 件は ✅ 12 件解決 / ⚠️ 1 件部分解決(W3、5 箇所目残存)と評価。新規 8 件のうち本レビューで対応:
+
+| ID | 重要度 | 対応 |
+|----|--------|------|
+| **N1** | 🟡 Warning | `application-design.md` §6 のドメインポート列挙に `OAuthExchanger` を追記、D-15〜D-18.5 表記統一を完全化(W3 の 5 箇所目を解消) |
+| **N2** | 🟢 Suggestion | §7.5 の「13 TBD」→「**15 TBD**」に修正(N5 で 1 行追加したため最終 15)+ 末尾 1 行は §4.6.1 索引と注記 |
+| **N3** | 🟢 Suggestion | `components.md` §6 ドメイン行を `20(D-1〜D-19 + D-18.5 OAuthExchanger)` に統一 |
+| **N4** | 🟢 Suggestion | `id-index.md` D-NN 行を `D-1〜D-19 + D-18.5` に統一 |
+| **N5** | 💡 Note | §9 TBD 表に **運用アラート閾値**(Worker 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト)を追加(確定先 = Unit-7、影響 NFR = SECURITY-14 / NFR-7 / NFR-8) |
+| **N6** | 💡 Note | `requirements.md` SECURITY-15 を **4 カテゴリを自己完結的に定義**(下流 stories.md U2-EC-04 への参照は補助情報化)、要件 → 設計の依存方向を整流 |
+| **N7** | 💡 Note | `components.md` A-3 責務の `decision_queue`(古い設計の残骸)を `notify_queue + calendar_queue 両方` に修正(C1 修正方針と整合) |
+| **N8** | 💡 Note | SECURITY-13 の `subresource integrity (SRI)` 用語(技術的疑義)を `Worker WASM ビルド成果物のチェックサム検証`(SHA-256 artifact 照合)に書き換え |
+
+なお Phase 3 ルールへの **🪞 メタフィードバック** は別件として運営側で別途処理対応中。
+
 ## 7.5 レビュー反映履歴(PR #3 issue #4369241311 / 2026-05-04 — AI レビュー /review design モード Round 2)
 
 | 項目 | 対応 |
@@ -745,7 +762,7 @@ pub enum UserAction {
 | **🟡 数値整合性 30 vs 31 内部矛盾** | `components.md` L128 を 31 に修正、application-design.md と統一 |
 | **🟡 STRIDE 委譲の対応表不足** | `application-design.md` §4.6.1 にユニット別 threat-model.md 提出マイルストーン表を新設 |
 | **🟡 D-18.5 OAuthExchanger モック未追加** | components.md S-4 / component-methods.md §5 に `MockOAuthExchanger` を明記 |
-| **🟡 TBD 一覧化(構築可能性視点)** | `application-design.md` §9「Functional Design への引き継ぎ事項」を新設、13 TBD を確定先ユニット・マイルストーン付きで一覧化 |
+| **🟡 TBD 一覧化(構築可能性視点)** | `application-design.md` §9「Functional Design への引き継ぎ事項」を新設、**15 TBD** を確定先ユニット・マイルストーン付きで一覧化(うち末尾 1 行は §4.6.1 STRIDE マイルストーン表への索引、運用アラート閾値を Phase 3 レビューで追加) |
 
 ## 7.4 システム構成図の粒度向上(2026-05-04)
 
@@ -846,6 +863,7 @@ pub enum UserAction {
 | プロンプトキャッシュヒット率目標 | Unit-3 / Unit-5 / Unit-6 | βテスト中の運用調整 | NFR-7 | 70%(目標) |
 | `notification_event` の Flex Message テンプレート確定 | Unit-6 | Unit-6 Functional Design 完了時 | UX(P2 対応) | 雛形のみ、文言は MessageCatalog で確定 |
 | `max_concurrency`(Queue Consumer 並列上限) | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-1 / NFR-7 | 5〜10(暫定) |
+| 運用アラート閾値(Worker invocation 失敗率 / DLQ 滞留件数 / 認証失敗率 / Anthropic コスト超過 等) | Unit-7: 監視・運用 | Unit-7 Infrastructure Design 完了時 | NFR-4 SECURITY-14 / NFR-7 / NFR-8 | 失敗率 5% / DLQ 10 件・1h 滞留 / 認証失敗 10/h(暫定) |
 | 各 STRIDE 脅威モデル(7 ユニット分の `threat-model.md`) | 全 Unit | 各ユニット Functional Design 完了時 | NFR-4 SECURITY-11 | §4.6.1 マイルストーン表参照 |
 
 **運用ルール**:

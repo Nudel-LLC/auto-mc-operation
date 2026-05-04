@@ -572,3 +572,20 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (consents テーブル簡素化)
 
 ---
+
+## Application Design — AI Phase 3 再レビュー反映 (PR #3 issue 4369941466)
+**Timestamp**: 2026-05-04T10:30:00Z
+**User Input**: AI Phase 3 design-mode `--since=4369241311` 再レビュー(前回 13 件は 12 完全解決 + 1 部分解決と評価、新規 8 件)
+**AI Response**:
+- 🟡 N1: application-design.md §6 のドメインポート列挙に `OAuthExchanger` 追加(W3 の 5 箇所目解消)
+- 🟢 N2: §7.5 「13 TBD」→「15 TBD」に修正(N5 で 1 行追加)+ 索引行注記
+- 🟢 N3: components.md §6 ドメイン行を `20(D-1〜D-19 + D-18.5 OAuthExchanger)` に統一
+- 🟢 N4: id-index.md D-NN 行を `D-1〜D-19 + D-18.5` に統一
+- 💡 N5: §9 TBD 表に運用アラート閾値(Worker 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト)を追加
+- 💡 N6: requirements.md SECURITY-15 を 4 カテゴリ自己完結定義(stories.md U2-EC-04 への参照は補助化、要件→設計の依存方向を整流)
+- 💡 N7: components.md A-3 責務の `decision_queue` を `notify_queue + calendar_queue 両方` に修正(C1 整合)
+- 💡 N8: SECURITY-13 の SRI 用語を「Worker WASM チェックサム検証」に書き換え
+- §7.6 レビュー反映履歴を新設、Phase 3 ルールメタフィードバックは別件処理として除外
+**Context**: INCEPTION - Application Design (Phase 3 Re-review 反映完了)
+
+---
