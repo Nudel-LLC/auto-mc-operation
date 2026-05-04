@@ -110,7 +110,7 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | **S-1** | `Logger` / `MetricsRecorder` | F-06: 構造化ログ(`request_id`, `actor`, `action_source`)+ メトリクス(F-14)+ シークレット redact |
 | **S-2** | `MessageCatalog` | F-08: ユーザー向け文言定数(`messages/ja.rs`)+ 専門用語禁止 lint 用辞書 |
 | **S-3** | `ErrorClassifier` | `DomainError` から U2-EC-04 4 カテゴリへの分類 + 復旧ガイダンス生成 |
-| **S-4** | `TestSupport`(test feature) | Q8=A: F-13(D-15〜D-18)ポートのモック実装、フィクスチャローダー |
+| **S-4** | `TestSupport`(test feature) | Q8=A: F-13(D-15〜D-18.5)ポートのモック実装(`MockMailRepository` / `MockCalendarRepository` / `MockNotificationChannel` / `MockLlmClient` / `MockOAuthExchanger`)、フィクスチャローダー |
 
 ---
 
@@ -125,6 +125,6 @@ DDD レイヤ別のコンポーネント定義。Q1=B(中粒度・柔軟調整) 
 | Shared | 4 |
 | **合計** | **52** |
 
-> Repository トレイトが 1 まとまり(D-14)で複数のサブトレイトを内包しているため、**実質的なドメイン抽象は約 30 個**。Q1=B「ユニットに合わせて柔軟」「過細化避ける」方針に沿い、関連性の高いリポジトリは同じトレイトファミリーにまとめてある。
+> Repository トレイトファミリー(D-14)を 1 行に集約しているため、**実質的なドメイン抽象は約 31**(D-1〜D-19 + D-18.5 のうち D-14 をサブトレイト分割した場合の総数)。Q1=B「ユニットに合わせて柔軟」「過細化避ける」方針に沿い、関連性の高いリポジトリは同じトレイトファミリーにまとめてある。
 
 詳細なメソッドシグネチャは `component-methods.md`、依存関係は `component-dependency.md` を参照。

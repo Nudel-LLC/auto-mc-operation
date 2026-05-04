@@ -278,7 +278,7 @@ P-5 は単一 Worker 関数だが、`batch.queue` の値(Queue 名)で対応す�
 
 | レイヤ | crate | 主要コンポーネント数 | 役割 |
 |--------|-------|---------------------|------|
-| domain | `crates/domain` | 19 | 純粋なビジネスロジック・トレイト・エラー型(外部依存ゼロ) |
+| domain | `crates/domain` | 20(D-1〜D-19 + D-18.5 OAuthExchanger) | 純粋なビジネスロジック・トレイト・エラー型(外部依存ゼロ) |
 | application | `crates/application` | 10(ユースケース) | オーケストレーション、saga、補償 |
 | infrastructure | `crates/infrastructure` | 11 | 外部 API / DB / Queue / 暗号 アダプタ |
 | presentation | `crates/presentation` | 7 | Workers ハンドラ |
@@ -498,7 +498,11 @@ CREATE TABLE declines (
     triggered_by_case TEXT NOT NULL REFERENCES cases(id),  -- 決定案件
     decline_draft TEXT NOT NULL,             -- 生成された辞退本文
     sent_message_id TEXT,
-    status TEXT NOT NULL DEFAULT 'proposed', -- proposed | sent | failed
+    status TEXT NOT NULL DEFAULT 'proposed' CHECK(status IN ('proposed','approved','sent','failed')),
+        -- proposed: 検出済み・承認待ち
+        -- approved: ユーザーが LINE で承認、送信予約
+        -- sent: 送信完了
+        -- failed: 送信失敗(再試行待ち or 手動対応待ち)
     sent_at TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -640,6 +644,20 @@ CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
   | Workers ↔ D1 / KV / R2 | application → I-5/I-6/I-7 | Tampering, Information Disclosure |
   | ユーザー ↔ LINE Bot | U → P-1 経由 | Spoofing(なりすまし)、Information Disclosure |
 
+### 4.6.1 STRIDE 実施マイルストーン(各ユニットの threat-model.md 提出時期)
+
+| 提出時期 | 対象ユニット | 主な検討対象 | レビュー判定 |
+|---------|-------------|-------------|-------------|
+| Functional Design 完了時(各ユニット) | Unit-1: Foundation | 全 4 トラスト境界の包括的レビュー(基盤として必須) | 提出無し → Critical |
+| 同上 | Unit-2: メール取込・分類 | Spoofing(LINE / Pub/Sub 偽装)、Tampering(分類ルール改竄) | 提出無し → Critical |
+| 同上 | Unit-3: 案件抽出 | Information Disclosure(LLM 経由のメール本文流出)、DoS(大量プロンプト) | 提出無し → Critical |
+| 同上 | Unit-4: カレンダー連携 | Information Disclosure(プライベート予定本文非取得の機械的保証) | 提出無し → Critical |
+| 同上 | Unit-5: エントリー下書き | Tampering(下書き内容改竄)、Information Disclosure(過去 PR 文の他ユーザー流出) | 提出無し → Critical |
+| 同上 | Unit-6: 通知 + 半自動承認 | Spoofing(他ユーザーへの誤通知)、Repudiation(操作履歴の否認不可性) | 提出無し → Critical |
+| 同上 | Unit-7: 監視・運用 | DoS(運用 API への攻撃)、Information Disclosure(監査ログ漏洩) | 提出無し → Critical |
+
+各 `threat-model.md` には **STRIDE 6 カテゴリ × トラスト境界 × 緩和策** のマトリクスを掲載し、N/A 判定は根拠とともに明記する(SECURITY-11 機械的判定の入口になる)。
+
 ## 5. エラーハンドリングアーキテクチャ(Q3 = C)
 
 ### 5.1 エラー型階層
@@ -705,12 +723,30 @@ pub enum UserAction {
 
 | 構成方針 | 反映先 |
 |---------|--------|
-| 拡張性方針(F-11) | D-15〜D-18 ポートが Outlook / Apple Calendar / Slack 拡張時に新規アダプタ実装で対応 |
+| 拡張性方針(F-11) | D-15〜D-18.5 ポート(D-18.5 OAuthExchanger 含む)が Outlook / Apple Calendar / Slack / 他 IdP 拡張時に新規アダプタ実装で対応 |
 | ドキュメント集約方針 | `docs/architecture.md`(本ドキュメントの要約)/ `docs/api-design.md`(セクション 4 抜粋)/ `docs/data-model.md`(セクション 3 抜粋) |
 | システム構成図(F-12) | セクション 1.1 / 1.2 がその実体、`docs/system-overview.md` に複製 |
 | テスト・監視のスコープ(F-13/F-14) | 本ドキュメントは枠組みまで、詳細は Functional Design / Build and Test |
 
 ---
+
+## 7.5 レビュー反映履歴(PR #3 issue #4369241311 / 2026-05-04 — AI レビュー /review design モード Round 2)
+
+| 項目 | 対応 |
+|------|------|
+| **🔴 NFR-4 に SECURITY-07/12/13/14/15 欠落** | `requirements.md` §6 NFR-4 に 5 ルールへの参照を追記、本プロジェクトでの実現方針を明記 |
+| **🔴 declines.status 不整合(3値 vs 4値)** | `application-design.md` §3.3 DDL を `proposed/approved/sent/failed` に統一、CHECK 制約追加 |
+| **🔴 domain 数 19 vs 20 食い違い** | `application-design.md` §2 サマリ表を `20(D-1〜D-19 + D-18.5)` に修正 |
+| **🔴 SECURITY-01〜18 範囲虚偽** | `id-index.md` を `01〜15`(全 15 ルール)に修正 |
+| **🔴 Rust enum 構文不正(`|` → `,`)** | `component-dependency.md` §3.2 の 7 enum すべて Rust 正規構文に書き直し |
+| **🟡 aidlc-state.md 成果物数陳腐化** | 「成果物 6 件 + 横断資料 1 件(id-index.md)」に更新 |
+| **🟡 §1 Mermaid に A-10 / S-4 欠落** | `component-dependency.md` §1 Mermaid 図に追加 |
+| **🟡 D-15〜D-18 表記が D-18.5 追加後未更新** | 4 箇所を `D-15〜D-18.5` に統一、`MockOAuthExchanger` を component-methods.md / components.md S-4 に追記 |
+| **🟡 永続化マッピング 12 行(14 テーブル網羅せず)** | `component-dependency.md` §4 を 14 行(`oauth_tokens` / `calendar_events` 追加)+ 脚注に拡張 |
+| **🟡 数値整合性 30 vs 31 内部矛盾** | `components.md` L128 を 31 に修正、application-design.md と統一 |
+| **🟡 STRIDE 委譲の対応表不足** | `application-design.md` §4.6.1 にユニット別 threat-model.md 提出マイルストーン表を新設 |
+| **🟡 D-18.5 OAuthExchanger モック未追加** | components.md S-4 / component-methods.md §5 に `MockOAuthExchanger` を明記 |
+| **🟡 TBD 一覧化(構築可能性視点)** | `application-design.md` §9「Functional Design への引き継ぎ事項」を新設、13 TBD を確定先ユニット・マイルストーン付きで一覧化 |
 
 ## 7.4 システム構成図の粒度向上(2026-05-04)
 
@@ -788,4 +824,31 @@ pub enum UserAction {
 - ✅ Webhook / 管理 API / Phase 2 ユーザー API のエンドポイント仕様
 - ✅ U2-EC-04 統合の 4 カテゴリエラー型階層
 
-詳細な業務ロジック・閾値・タイムアウト値・バリデーションは **Functional Design ステージ(per-unit, Construction)** で確定する。
+詳細な業務ロジック・閾値・タイムアウト値・バリデーションは **Functional Design ステージ(per-unit, Construction)** で確定する(§9 で一覧)。
+
+---
+
+## 9. Functional Design への引き継ぎ事項(TBD 一覧)
+
+本ステージで意図的に確定させなかった項目を、**確定先ユニット / 確定マイルストーン / 影響する NFR** の形で一覧化する。「TBD 放置」を防ぎ、Functional Design レビューで機械的に判定可能にする。
+
+| 項目 | 確定先ユニット | 確定マイルストーン | 影響 NFR | 既知の暫定値 |
+|------|--------------|------------------|---------|-------------|
+| `classification_rules.priority` 評価上限件数 | Unit-2: メール取込・分類 | Unit-2 Functional Design 完了時 | NFR-1(レイテンシ) | 暫定上限なし → 実測で 100 件等 |
+| ルールベース判定率(NFR-7 試算で 50% 想定) | Unit-2 | Unit-2 βテスト後の運用調整 | NFR-7(コスト) | 50%(目標)、実測キャリブレーション必要 |
+| `messages.classification_confidence` の `needs_review` 閾値 | Unit-2 | Unit-2 Functional Design 完了時 | NFR-6(信頼性) | 0.6(暫定、評価ハーネスで決定) |
+| Few-shot 採用件数(`pr_corpus` / `decline_corpus`) | Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト)/ 出力品質 | 3〜5 件(暫定) |
+| `users.travel_buffer_minutes` のユーザー設定可能範囲 | Unit-4: カレンダー連携 | Unit-4 Functional Design 完了時 | UX | デフォルト 60 分、範囲は TBD(0〜180?) |
+| LLM 呼び出しタイムアウト | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-1 | 25 秒(暫定、`AbortSignal.timeout`) |
+| Queue リトライ回数 | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-3 | 3 回 + 指数バックオフ(暫定) |
+| Cron 頻度(Watch 更新) | Unit-2 | Unit-2 Infrastructure Design 完了時 | NFR-3 | 毎時(暫定) |
+| Cron 頻度(R2 cleanup / audit_logs アーカイブ) | Unit-7: 監視・運用 | Unit-7 Infrastructure Design 完了時 | NFR-5(保管) | 日次 / 週次(暫定) |
+| LLM 入出力トークン上限(プロンプト圧縮目標) | Unit-2 / Unit-3 / Unit-5 / Unit-6 | 各ユニット Functional Design 完了時 | NFR-7(コスト) | 入力 ≤ 1500、出力 ≤ 400(暫定) |
+| プロンプトキャッシュヒット率目標 | Unit-3 / Unit-5 / Unit-6 | βテスト中の運用調整 | NFR-7 | 70%(目標) |
+| `notification_event` の Flex Message テンプレート確定 | Unit-6 | Unit-6 Functional Design 完了時 | UX(P2 対応) | 雛形のみ、文言は MessageCatalog で確定 |
+| `max_concurrency`(Queue Consumer 並列上限) | 全 Unit | 各ユニット Infrastructure Design 完了時 | NFR-1 / NFR-7 | 5〜10(暫定) |
+| 各 STRIDE 脅威モデル(7 ユニット分の `threat-model.md`) | 全 Unit | 各ユニット Functional Design 完了時 | NFR-4 SECURITY-11 | §4.6.1 マイルストーン表参照 |
+
+**運用ルール**:
+- 各 Functional Design レビューで「該当 TBD が確定されているか」を機械的にチェック(未確定 → Critical)
+- 確定後は本表から削除し、確定値を当該ユニットの Functional Design 文書に明記

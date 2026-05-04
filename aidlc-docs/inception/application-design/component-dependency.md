@@ -28,6 +28,7 @@ flowchart TB
         A7[ManageCalendar]
         A8[DetectDecline]
         A9[NotifyUser]
+        A10[RotateGmailWatch]
     end
 
     subgraph DOM["🟨 domain (Entity / VO / Service / Port / Error)"]
@@ -54,6 +55,7 @@ flowchart TB
         S1[Logger]
         S2[MessageCatalog]
         S3[ErrorClassifier]
+        S4[TestSupport]
     end
 
     PR --> APP
@@ -134,13 +136,38 @@ pub struct QueueEnvelope<T> {
 ペイロード型例:
 
 ```rust
-pub enum ClassifyPayload   { New { message_id: MessageId } }
-pub enum ExtractPayload    { Pending { message_id: MessageId, label: ClassificationLabel } }
-pub enum AvailabilityPayload { Check { case_id: CaseId } }
-pub enum DraftPayload      { Compose { case_id: CaseId, chosen_slot: SlotId, requires_pr: bool } }
-pub enum NotifyPayload     { CaseSummary { case_id: CaseId } | DraftReady { case_id: CaseId, draft_id: DraftId } | DeclineProposal { proposals: Vec<DeclineDraft> } | Error { kind: ErrorKind, hint: MessageKey } }
-pub enum CalendarPayload   { RegisterTentativeAll(CaseId) | PromoteAndCleanup { case_id: CaseId, chosen_slot: SlotId } | DeleteAllByCase(CaseId) }
-pub enum DeclinePayload    { Detect { confirmed_case: CaseId, confirmed_slot: SlotId } }
+pub enum ClassifyPayload {
+    New { message_id: MessageId },
+}
+
+pub enum ExtractPayload {
+    Pending { message_id: MessageId, label: ClassificationLabel },
+}
+
+pub enum AvailabilityPayload {
+    Check { case_id: CaseId },
+}
+
+pub enum DraftPayload {
+    Compose { case_id: CaseId, chosen_slot: SlotId, requires_pr: bool },
+}
+
+pub enum NotifyPayload {
+    CaseSummary { case_id: CaseId },
+    DraftReady { case_id: CaseId, draft_id: DraftId },
+    DeclineProposal { proposals: Vec<DeclineDraft> },
+    Error { kind: ErrorKind, hint: MessageKey },
+}
+
+pub enum CalendarPayload {
+    RegisterTentativeAll(CaseId),
+    PromoteAndCleanup { case_id: CaseId, chosen_slot: SlotId },
+    DeleteAllByCase(CaseId),
+}
+
+pub enum DeclinePayload {
+    Detect { confirmed_case: CaseId, confirmed_slot: SlotId },
+}
 ```
 
 ### 3.3 冪等性
@@ -151,22 +178,30 @@ pub enum DeclinePayload    { Detect { confirmed_case: CaseId, confirmed_slot: Sl
 
 ## 4. データ永続化マッピング
 
-| ドメイン集約 | D1 テーブル | 暗号化 |
-|-------------|-----------|--------|
-| User | `users` | OAuth トークンのみ AES-GCM(F-09) |
-| Case | `cases` | — |
-| Schedule | `schedules`(`cases` に FK) | — |
-| Entry | `entries`(`cases` / `schedules` に FK) | — |
-| Decline | `declines`(`cases` に FK) | — |
-| Message | `messages`(`users` に FK) | — |
-| PrCorpus | `pr_corpus`(`users` に FK) | — |
-| DeclineCorpus | `decline_corpus`(`users` に FK) | — |
-| Consent | `consents`(`users` に FK) | — |
-| OfficePattern | `office_patterns` | — |
-| ClassificationRule | `classification_rules` + KV キャッシュ | — |
-| AuditLog | `audit_logs` | — |
+**ドメイン集約 ↔ D1 テーブル の対応**(全 14 テーブル網羅。集約とテーブルが 1:1 でないものは脚注参照):
 
-詳細スキーマは `application-design.md` のデータモデル節を参照。
+| ドメイン集約 | D1 テーブル | 暗号化 | 備考 |
+|-------------|-----------|--------|------|
+| User | `users` | — | プロフィール・設定 |
+| User(関連) | **`oauth_tokens`** | AES-256-GCM(F-09 / `key_id` 別カラム) | User 集約に内包する別テーブル(1:1) |
+| Consent | `consents`(`users` に FK) | — | append-only(トリガー) |
+| Message | `messages`(`users` に FK) | — | 本文は R2 |
+| OfficePattern | `office_patterns` | — | global、user スコープなし |
+| ClassificationRule | `classification_rules`(+ KV キャッシュ) | — | global / user 両スコープ |
+| Case | `cases` | — | 集約ルート |
+| Schedule | `schedules`(`cases` に FK) | — | Case の構成要素 |
+| Entry | `entries`(`cases` / `schedules` に FK) | — | — |
+| Decline | `declines`(`cases` に FK) | — | proposed/approved/sent/failed |
+| (Case 関連) | **`calendar_events`**(`users` / `cases` / `schedules` に FK) | — | A-7 ManageCalendar が CRUD する独立テーブル(1 Case = N 候補スロット = N events) |
+| PrCorpus | `pr_corpus`(`users` に FK) | — | 本人作成・永続 |
+| DeclineCorpus | `decline_corpus`(`users` に FK) | — | 本人作成・永続 |
+| AuditLog | `audit_logs` | — | F-06 構造化ログから 12 ヶ月保管 |
+
+**脚注**:
+- `oauth_tokens` は User 集約に紐づくが、暗号化要件と更新サイクルが異なるため **物理的には独立テーブル**(F-09 鍵ローテーションで再暗号化のトランザクションを限定するため)
+- `calendar_events` は Case 配下の派生実体で、Google Calendar 側 ID(`google_event_id`)とサービス所有状態(`tentative`/`confirmed`/`deleted`)を保持
+
+詳細スキーマは `application-design.md` のデータモデル節および `data-model.md` を参照。
 
 ## 5. 横断的関心事
 

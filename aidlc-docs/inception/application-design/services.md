@@ -176,7 +176,7 @@ sequenceDiagram
 
 ## 7. テスト戦略との接続(Q8=A)
 
-- 各ユースケースは **D-15〜D-18 ポートにのみ依存** するため、`Mock*` 実装を注入してユニットテスト可能
+- 各ユースケースは **D-15〜D-18.5 ポートにのみ依存** するため、`Mock*` 実装を注入してユニットテスト可能
 - Queue 経由の連携は **結合テスト**で `MockQueueProducer` を使い、enqueue されたメッセージの内容を検証
 - E2E テストは Miniflare + WireMock(Anthropic / Google / LINE のモック)で実行
 

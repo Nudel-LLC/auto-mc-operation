@@ -530,3 +530,28 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (構成図粒度向上、実行モデル明記)
 
 ---
+
+## Application Design — AI レビュー Round 2 反映 + PR 説明欄整理 (PR #3 issue 4369241311)
+**Timestamp**: 2026-05-04T09:30:00Z
+**User Input**: AI レビュー(/review design モード Round 2)— Critical 5 / Warning 8 / Note 1 + PR 説明欄整理依頼
+**AI Response**:
+- 🔴 NFR-4 に SECURITY-07 / 12 / 13 / 14 / 15 を追記、各ルールの実現方針を明記(security-baseline Enabled = Yes 連動)
+- 🔴 declines.status を 4 値統一(`proposed/approved/sent/failed`)+ CHECK 制約
+- 🔴 application-design.md §2 サマリ表 domain を 19 → 20 に修正(D-18.5 反映)
+- 🔴 id-index.md SECURITY-01〜18 → 01〜15(全 15 ルール)に修正(架空 ID 参照修正)
+- 🔴 component-dependency.md §3.2 の Rust enum 7 個を `|` → `,` に書き直し(7 enum すべて Rust 正規構文)
+- 🟡 aidlc-state.md 成果物数を 6 件 + 横断資料 1 件に更新
+- 🟡 component-dependency.md §1 Mermaid に A-10 / S-4 を追加
+- 🟡 D-15〜D-18 → D-15〜D-18.5 を 4 箇所統一(application-design.md / services.md / component-methods.md / components.md)
+- 🟡 component-dependency.md §4 永続化マッピングに oauth_tokens / calendar_events を追加(14 行に拡張、脚注付き)
+- 🟡 components.md L128 「実質抽象 30」→ 31 に修正(数値内部整合)
+- 🟡 §4.6.1 STRIDE 実施マイルストーン表を新設(7 ユニット分の threat-model.md 提出時期)
+- 🟡 components.md S-4 / component-methods.md §5 に MockOAuthExchanger を追記
+- 🆕 application-design.md §9 「Functional Design への引き継ぎ事項(TBD 一覧)」を新設(13 TBD を確定先・マイルストーン付きで一覧化)
+- §7.5 レビュー反映履歴を新設
+- **PR 説明欄を整理**:
+  - 旧タイトル「add: AIDLCワークフローの初期成果物を追加」(初回コミット時)→ 新タイトル「[INCEPTION] AIDLC INCEPTION フェーズ成果物」
+  - 旧本文 3 行(初期コミット時の暫定記述)→ 新本文に PR テンプレート相当(概要・上流整合性・拡張機能・変更内容・関連 Issue・動作確認・レビュー観点・次ステージ)を網羅
+**Context**: INCEPTION - Application Design (Review Round 2 反映完了 + PR 説明欄リフレッシュ)
+
+---

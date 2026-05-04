@@ -296,6 +296,6 @@ pub async fn run_queue_consumer<C: ConsumerLogic>(batch: MessageBatch, env: Env)
 - **Q4=C 完全 API 仕様**: 各 HTTP ハンドラのリクエスト/レスポンス・認証ヘッダ・レート制限は `application-design.md` の API 設計セクションで一元管理
 - **Q5=B 全列+制約+主要IDX**: メソッドが受け取る型(Case / Schedule / Entry 等)は D1 スキーマと 1:1 で `application-design.md` のデータモデル節と同期
 - **Q7=A eventually consistent / saga**: 各ユースケースは **失敗時補償ハンドラ** を内部に持ち、Queue 経由で次ステップへ繋ぐ。ユースケース完了時点で D1 トランザクションをコミットし、後段失敗時は補償操作を別ユースケース起動でロールバック
-- **Q8=A モック境界**: D-15〜D-18 トレイトに対する `MockMailRepository` / `MockCalendarRepository` / `MockNotificationChannel` / `MockLlmClient` を `crates/shared/test_support` に置き、ユニット / 結合テストで使用
+- **Q8=A モック境界**: D-15〜D-18.5 トレイトに対する `MockMailRepository` / `MockCalendarRepository` / `MockNotificationChannel` / `MockLlmClient` / **`MockOAuthExchanger`**(A-1 OnboardUser のテストで Google OAuth 実呼び出しを避けるために必須)を `crates/shared/test_support` に置き、ユニット / 結合テストで使用
 
 詳細なエラーハンドリング・バリデーション・業務ルールは **Functional Design ステージ(per-unit, Construction)** で確定する。

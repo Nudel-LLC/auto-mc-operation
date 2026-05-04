@@ -12,7 +12,7 @@
 |--------------|-----|------|---------------|-----------|
 | **FR-N** | FR-1〜FR-8 | 機能要件 | `inception/requirements/requirements.md` §5 機能要件 | stories.md トレーサビリティ表、application-design.md §8 完了基準、各設計成果物 |
 | **NFR-N** | NFR-1〜NFR-8 | 非機能要件 | `inception/requirements/requirements.md` §6 非機能要件 | 全設計成果物 |
-| **SECURITY-NN** | SECURITY-01〜18 | セキュリティ拡張ルール | `.aidlc-rule-details/extensions/security/baseline/security-baseline.md` | requirements.md NFR-4、application-design.md §4 / §4.6 |
+| **SECURITY-NN** | SECURITY-01〜15(全 15 ルール) | セキュリティ拡張ルール(`security-baseline` Extension) | `.aidlc-rule-details/extensions/security/baseline/security-baseline.md` | requirements.md NFR-4(全 15 ルールへ参照)、application-design.md §4 / §4.6 |
 | **F-NN** | F-01〜F-14 | **Foundation Story**(基盤・最初に開発) | `inception/user-stories/stories.md` Foundation Epic セクション | application-design.md レビュー反映履歴、components.md `Implements` 行、各設計成果物 |
 | **UN-NN** | U1-01, U2-EC-04 等 | **MVP Use Case Story** | `inception/user-stories/stories.md` MVP Use Case Epic セクション(Use Case 1〜7) | application-design.md A-N の `Implements` 行 |
 | **P2-NN** | P2-01〜P2-08 | **Phase 2 Story 概略** | `inception/user-stories/stories.md` Phase 2 Epic セクション | requirements.md §4.2、application-design.md §17 |

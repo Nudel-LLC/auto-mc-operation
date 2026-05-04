@@ -205,10 +205,15 @@
 - **SECURITY-04**: HTTP セキュリティヘッダ(CSP / HSTS / X-Content-Type-Options / X-Frame-Options / Referrer-Policy)を全レスポンスに付与
 - **SECURITY-05**: 全 API エンドポイントで入力検証(Rust の `serde` + `validator` クレート、長さ・型・正規表現チェック、SQL は `sqlx` のパラメータバインドのみ)
 - **SECURITY-06**: Cloudflare API トークン・GCP IAM は最小権限・リソース限定
+- **SECURITY-07**: ネットワーク制限(deny-by-default)— Cloudflare Workers は HTTPS Webhook のみ受け付け、内部 binding(D1/KV/R2/Queues/DO)はサービスバインディングで限定。Phase 2 GCP 移行時は Cloud Run の Ingress を `internal-and-cloud-load-balancing` 等で限定
 - **SECURITY-08**: アプリレベル認可(JWT / セッション)、CORS は明示オリジンのみ
 - **SECURITY-09**: 本番エラーレスポンスにスタックトレース等を含めない、デフォルト認証情報排除
 - **SECURITY-10**: `Cargo.lock` コミット、`cargo audit` を CI に組込み、SBOM 生成、Docker `latest` 禁止
-- **SECURITY-11**: 設計フェーズで脅威モデリング(STRIDE)を実施
+- **SECURITY-11**: 設計フェーズで脅威モデリング(STRIDE)を実施(枠組みは `application-design.md` §4.6、各ユニットの Functional Design ステージで詳細実施)
+- **SECURITY-12**: 認証・資格情報管理 — OAuth リフレッシュトークンは AES-256-GCM 暗号化(F-09 / `oauth_tokens` テーブル)、Anthropic / LINE / Google の API キー類はすべて Wrangler secrets、ハードコード禁止 lint で機械的検証(F-08)
+- **SECURITY-13**: ソフトウェア・データ完全性 — `Cargo.lock` 必須コミット、CI で `cargo audit` 実行、Wrangler 配布物の subresource integrity(SRI)対応、デプロイは GitHub Actions の信頼済 Workflow からのみ(SECURITY-10 と相互補完)
+- **SECURITY-14**: アラートと監視 — `application-design.md` §1.4 / F-14 の監視枠組みに従い、Worker invocation 失敗率 / DLQ 滞留 / 認証失敗率 / Anthropic コスト超過 を運用者 LINE グループへリアルタイムアラート(F-06 構造化ログを起点)
+- **SECURITY-15**: 例外ハンドリング・フェイルセーフ既定 — 失敗時は U2-EC-04 4 カテゴリ(`Transient` / `Recoverable` / `DataIssue` / `Permanent`)に分類しデフォルトでは「ユーザーへ被害を及ぼさない」方向に倒す。OAuth 失効はメール処理を自動停止し再認可待ち(`Recoverable`)、LLM 異常時は `needs_review` フラグで人間レビューに回す(`DataIssue`)。詳細は `application-design.md` §5
 
 ### NFR-5: プライバシー・データ保存(個情法・電気通信事業法対応)
 - **保存方針(ハイブリッド)**:
