@@ -825,3 +825,35 @@ Googleカレンダー以外のスケジュールサービス利用者
 **Context**: INCEPTION - Application Design (Round 9 マルチエージェント並列レビュー反映)
 
 ---
+
+## INCEPTION - Application Design (AI レビュー Round 10 マルチエージェント並列レビュー対応)
+**Timestamp**: 2026-05-05T00:30:00Z
+**User Input**: "PRに11件のAIレビューを入れました。内容をよく確認し、妥当な部分は改修してください。私と相談したい部分はAIDLCに従い、質問ドキュメントを作ってください。"
+**AI Response**: PR #3 Round 10 マルチエージェント並列レビュー(統合サマリ #4375539981 + 観点別 10 件 #4375540099〜4375541609、計 49 Critical / 101 Major / 97 Minor)を分析し、技術的に明確な指摘 12 群を即修正、ユーザー判断必要な指摘 12 群を質問ドキュメント化:
+
+### A. 即修正(本 commit に含まれる)
+  - **DATA-C-03 / M-06 / DB-M-12**: audit_logs append-only と GDPR 削除 saga §17.3 の矛盾解消 — trg_audit_no_update を「user_id NULL 化のみ許可」(consents と同方針)に修正、application-design.md §3.3 + data-model.md §15 同期
+  - **DB-C-05**: BLOB 区切り文字 `:` 廃止 — `nonce(12B) ‖ ciphertext ‖ tag(16B)` の固定長連結に変更、data-model.md §2 + stories.md F-09 AC-3 同期
+  - **DB-M-05 + DATA-C-01**: calendar_events に UNIQUE(user_id, google_event_id) 追加(at-least-once 二重作成防止)
+  - **DB-M-06**: cases.source_message_id に UNIQUE 追加(同募集メールから複数 case 作成防止)
+  - **DB-M-09**: messages.history_id に UNIQUE(user_id, history_id) 追加(Pub/Sub at-least-once 重複処理検知)
+  - **DB-M-03**: messages.gmail_thread_id に index 追加(A-4 同一スレッド検索)
+  - **DATA-C-02**: idx_entries_case_active を UNIQUE 部分インデックスに格上げ(1 案件 = 1 active entry の DB 強制)
+  - **DB-C-02**: cases.needs_user_action に部分インデックス追加(要対応一覧 UI の Full Scan 回避)
+  - **DB-C-03**: audit_logs.correlation_id に部分インデックス追加(saga 全イベント追跡の障害解析高速化)
+  - **GW-C-01 / PFFIT-M-04**: requirements.md §7.1 から yup-oauth2 削除、`reqwest` + Web Crypto API による HTTP 直叩きに変更(WASM 互換)、aidlc-state.md / §7.4 同期
+  - **API-C-01/02/03 + M-01/02/04/09**: application-design.md §4.5.1〜4.5.6 を新設 — RFC 9457 problem+json / HTTP ステータスコード体系 / Idempotency-Key 契約(Stripe-style) / Queue schema_version / Rate-Limit + Retry-After ヘッダ規約 / Trace-ID / Correlation-ID 伝搬 + §4.5 に Webhook 早期 ack 責任分界を追加
+  - **GW-C-02**: U1-EC-04(Watch 失効後の historyId 再ベースライン取得)Story を新規追加、U1-EC-03 AC-1 を「残 48 時間」警告に修正
+  - **LINE-C-04**: F-04 AC-6(LINE Webhook イベントタイプ網羅)+ F-04.2(unfollow event 処理 — Push 停止フラグ + 90 日超で Watch 自動停止のコスト保護)Story 新規追加
+  - **LINE-C-05**: F-04.1(follow event — welcome + オンボーディング誘導)Story 新規追加
+  - **REQ-C-06**: stories.md L2061「Use Case 8 (F8) | 0(Phase 2 へ移動)」を取消線 + 「— (Phase 2 P2-08 へ全面移管、本統計の MVP 対象外)」に修正
+
+### B. 質問ドキュメント作成
+  - 新規作成: aidlc-docs/inception/application-design/round10-clarification-questions.md(R10-Q1〜Q12 の計 12 件)
+  - 内容: NFR-7 ¥500 達成戦略 / OAuth verification + CASA / LINE reply_token 設計 / LLM Prompt Injection 対策 / AES-GCM AAD / 管理 API Bearer 仕様 / Cloudflare Workflows・AI Gateway・Containers 採用 / NFR-1/3 SMART 化 / 削除請求の本人確認 / DDD 戦術深化 / 冪等性 DB 強制 / CSP 例外パス
+
+### 判断見送り
+  - DDD-M-01〜10 / SEC-M-01〜12 / API-Mi-01〜10 など Major 以下の細目は B群 R10-Q10 / Q4 / Q12 の上位質問に集約、個別対応は質問回答後に派生展開
+**Context**: INCEPTION - Application Design (Round 10 マルチエージェント並列レビュー反映、即修正 + 質問ドキュメント)
+
+---

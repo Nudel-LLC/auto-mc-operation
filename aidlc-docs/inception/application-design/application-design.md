@@ -417,6 +417,8 @@ CREATE TABLE messages (
 );
 CREATE UNIQUE INDEX idx_messages_gmail ON messages(user_id, gmail_message_id);
 CREATE INDEX idx_messages_review ON messages(user_id, needs_review) WHERE needs_review = 1;
+CREATE INDEX idx_messages_thread ON messages(user_id, gmail_thread_id);  -- DB-M-03: A-4 同一スレッド検索
+CREATE UNIQUE INDEX idx_messages_history ON messages(user_id, history_id);  -- DB-M-09: 重複処理検知 + Pub/Sub at-least-once 配信耐性
 
 -- 0002 offices(マスタ)
 CREATE TABLE offices (
@@ -479,6 +481,8 @@ CREATE TABLE cases (
 );
 CREATE INDEX idx_cases_user_status ON cases(user_id, status, deadline_at);
 CREATE INDEX idx_cases_user_office ON cases(user_id, office_id);
+CREATE UNIQUE INDEX idx_cases_source_message ON cases(source_message_id);  -- DB-M-06: 同募集メールから複数 case 作成を DB レベルで防止
+CREATE INDEX idx_cases_needs_action ON cases(user_id, needs_user_action) WHERE needs_user_action = 1;  -- DB-C-02: 要対応一覧の Full Scan 回避
 
 -- 0004 schedules
 CREATE TABLE schedules (
@@ -509,7 +513,7 @@ CREATE TABLE entries (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_entries_case ON entries(case_id);
-CREATE INDEX idx_entries_case_active ON entries(case_id) WHERE status != 'superseded';
+CREATE UNIQUE INDEX idx_entries_case_active ON entries(case_id) WHERE status != 'superseded';  -- DATA-C-02: 1 案件 = 1 active entry を DB レベルで強制(at-least-once Queue 二重実行で active 多重化を防ぐ)
 CREATE INDEX idx_entries_status ON entries(status);
 -- 確定スロットは schedules.is_chosen = 1 を参照(複数確定対応)
 
@@ -553,6 +557,7 @@ CREATE TABLE calendar_events (
 );
 CREATE INDEX idx_calevents_case ON calendar_events(case_id);
 CREATE INDEX idx_calevents_user ON calendar_events(user_id, state);
+CREATE UNIQUE INDEX idx_calevents_google ON calendar_events(user_id, google_event_id);  -- DATA-C-01 / DB-M-05: at-least-once Queue 再配送時の二重作成を DB レベルで防止
 
 -- 0008 entry_corpus / decline_corpus(本人帰属、永続)
 -- entry_corpus = エントリーメール本文(全文)を Few-shot 例として保管
@@ -598,13 +603,30 @@ CREATE TABLE audit_logs (
 );
 CREATE INDEX idx_audit_user_time ON audit_logs(user_id, created_at);
 CREATE INDEX idx_audit_action ON audit_logs(action, created_at);
+CREATE INDEX idx_audit_correlation ON audit_logs(correlation_id) WHERE correlation_id IS NOT NULL;  -- DB-C-03: saga 全イベント追跡(障害解析)を Full Scan 回避
 
 -- audit_logs append-only 強制(NFR-4 SECURITY-08 改竄防止の機械的保証)
--- consents と同方針: UPDATE / DELETE をトリガーで拒否し、INSERT のみ許可
+-- 例外: アカウント削除 saga §17.3 の匿名化(`user_id` を NULL 化)のみ許可。
+-- それ以外の列(actor / action_source / action / target_kind / target_id / payload_json /
+-- result / error_kind / correlation_id / created_at / id)を書き換える UPDATE はすべて ABORT。
 -- アーカイブ(R2 への月次エクスポート + D1 からの削除)は専用 batch job で実施し、
--- そのジョブだけ一時的に DELETE 権限を持つ別接続で実行する運用設計とする
+-- そのジョブだけ一時的に DELETE 権限を持つ別接続で実行する運用設計(consents と同方針)。
 CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ON audit_logs
-BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only'); END;
+WHEN NOT (
+    OLD.id = NEW.id
+    AND OLD.actor = NEW.actor
+    AND OLD.action_source = NEW.action_source
+    AND OLD.action = NEW.action
+    AND OLD.target_kind IS NEW.target_kind
+    AND OLD.target_id IS NEW.target_id
+    AND OLD.payload_json IS NEW.payload_json
+    AND OLD.result = NEW.result
+    AND OLD.error_kind IS NEW.error_kind
+    AND OLD.correlation_id IS NEW.correlation_id
+    AND OLD.created_at = NEW.created_at
+    AND (NEW.user_id IS NULL OR NEW.user_id IS OLD.user_id)
+)
+BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only (only user_id NULL anonymization allowed for §17.3 deletion)'); END;
 CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ON audit_logs
 BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only (use batch archive job for retention)'); END;
 ```
@@ -670,6 +692,94 @@ BEGIN SELECT RAISE(ABORT, 'audit_logs is append-only (use batch archive job for 
 1. リクエスト ID を計算(LINE: webhook event id / Pub/Sub: message id)
 2. KV `idempotency:{kind}:{id}` を確認
 3. 既処理ならスキップ、未処理なら 24 時間有効でマーク + 処理開始
+
+**Webhook 早期 ack の責任分界**(API-M-04 反映、LINE-C-02 / PLAT-M-02 連動): LINE / Pub/Sub Webhook は **5 秒以内に 2xx を返さないとイベントロスト** が起きる(LINE は再送なし、Pub/Sub は OIDC retries に依存)。このため:
+1. **Webhook 同期ハンドラ**: 署名検証 + 冪等性キー確認 + Queue enqueue のみ実行(LLM 呼び出し / DB 重い書き込みは禁止)、enqueue 成功で **即座に 200 OK** を返す
+2. **Queue enqueue 失敗時**: KV `webhook_outbox:{kind}:{id}` に再送ペイロードを退避(MVP 実装)、Cron で再 enqueue リトライ(`webhook_outbox` テーブル化は `[Phase 2: P2-NN]` で扱う)
+3. **タイムアウト目標**: Webhook 同期処理は p99 < 1 秒(NFR-1 連動、LINE 5 秒 / Pub/Sub 10 秒の余裕を確保)
+
+### 4.5.1 API エラーレスポンス契約(RFC 9457 problem+json 準拠)
+
+すべての管理 API / ユーザー API のエラーレスポンスは **RFC 9457 (旧 RFC 7807) Problem Details for HTTP APIs** に準拠する(API-C-01 反映):
+
+```json
+{
+  "type": "https://auto-mc-operation.example/errors/idempotency-key-conflict",
+  "title": "Idempotency-Key Conflict",
+  "status": 409,
+  "detail": "The Idempotency-Key 'abc123' was used with a different request body within 24h.",
+  "instance": "/v1/admin/rules/01HXX...",
+  "trace_id": "01HXY...",
+  "code": "ERR_IDEMPOTENCY_KEY_CONFLICT"
+}
+```
+
+| フィールド | 必須 | 内容 |
+|-----------|:---:|------|
+| `type` | ✅ | エラー種別の安定 URI(ドキュメントへのリンクとしても機能) |
+| `title` | ✅ | 短い人間可読タイトル(変更不可、英語固定) |
+| `status` | ✅ | HTTP ステータスコード(数値、レスポンスヘッダと一致) |
+| `detail` | 推奨 | 当該インスタンス固有の詳細メッセージ(ユーザー向け文言は MessageCatalog 経由) |
+| `instance` | 推奨 | 当該リソース URI(BOLA 防止のため UUID マスク済) |
+| `trace_id` | ✅ | `correlation_id` と同値、運用障害解析の起点 |
+| `code` | ✅ | 機械処理可能な安定エラーコード(MessageCatalog の翻訳キー兼用) |
+
+`Content-Type` は `application/problem+json; charset=utf-8`。`detail` は外部公開時に PII / 内部例外文字列を含めない(Functional Design で `internal_exception_leak_filter` を実装、SEC-M-08 連動)。
+
+### 4.5.2 HTTP ステータスコード体系(API-M-01 反映)
+
+| ステータス | 用途 | 例 |
+|-----------|------|-----|
+| 200 OK | 成功(body あり) | GET 系、POST で結果を返す場合 |
+| 201 Created | 作成成功(`Location` ヘッダ必須) | POST `/v1/admin/rules` |
+| 202 Accepted | 非同期受付(`Location` で進捗 URL を返却) | DLQ replay 等の長時間処理 |
+| 204 No Content | 成功(body なし) | DELETE 系、Webhook ack |
+| 400 Bad Request | 入力検証失敗 | `validator` クレート違反 |
+| 401 Unauthorized | 未認証 | Bearer 欠落 / 期限切れ |
+| 403 Forbidden | 権限不足(BOLA / IDOR) | 他人の `user_id` リソースへのアクセス |
+| 404 Not Found | リソース不在 | 存在しない `case_id` |
+| 409 Conflict | 冪等性違反 / 楽観ロック衝突 | `Idempotency-Key` 同一 + 異なる body |
+| 422 Unprocessable Entity | ビジネスルール違反 | `cases.status='confirmed'` での再エントリー試行 |
+| 429 Too Many Requests | レート制限超過(`Retry-After` ヘッダ必須) | NFR-1 / SECURITY-04 連動 |
+| 500 Internal Server Error | サーバー内部エラー | `DomainError::Permanent` / panic |
+| 503 Service Unavailable | 一時的不可(`Retry-After` ヘッダ推奨) | `DomainError::Transient` / Cloudflare 一時障害 |
+
+### 4.5.3 冪等性 (Idempotency-Key) 契約(API-C-02 反映、Stripe-style)
+
+POST / PATCH / DELETE エンドポイントのうち副作用を伴うものは **`Idempotency-Key` ヘッダ**(クライアント生成、UUID v4 推奨)で冪等性を実現する。
+
+- **保管**: KV `idempotency-key:{user_id}:{key}` に **24 時間** リクエスト body のハッシュ + レスポンスを保存(LINE / Pub/Sub Webhook 系の `idempotency:{kind}:{id}` とは namespace を分離、API-M-08 連動)
+- **挙動**:
+  - 同一 key + 同一 body ハッシュ → 保存済レスポンスを再返却(冪等)
+  - 同一 key + 異なる body ハッシュ → `409 Conflict` + problem+json `code: ERR_IDEMPOTENCY_KEY_CONFLICT`
+  - key 未指定の POST/PATCH/DELETE → `400 Bad Request` + `code: ERR_IDEMPOTENCY_KEY_REQUIRED`(管理 API のみ強制、ユーザー API は推奨)
+- **Webhook 系**: クライアント送信ではなく LINE event_id / Pub/Sub message_id を冪等キーとして使う(§4.5)
+
+### 4.5.4 Queue ペイロードバージョニング(API-C-03 反映)
+
+すべての Queue ペイロード(`ClassifyPayload` / `ExtractPayload` / `AvailabilityPayload` / `DraftPayload` / `NotifyPayload` / `CalendarPayload` / `DeclinePayload`)に **`schema_version: u32` フィールドを必須**(現行は `1`)とする。
+
+- **デシリアライズ規約**: `serde` で `#[serde(rename_all = "snake_case", tag = "kind")]` + `#[serde(default)]` を組み合わせ、未知フィールドは `#[serde(deny_unknown_fields)]` を **採用しない**(rolling deploy 時の旧 Consumer が新フィールドで死ぬのを防ぐ)
+- **進化方針**:
+  - 後方互換変更(フィールド追加 / `Option<T>` 化): `schema_version` 据え置き
+  - 破壊的変更: `schema_version` インクリメント、Consumer に新旧両対応の `match` 分岐を実装、全 Consumer デプロイ完了後に旧 Producer 削除
+- **DLQ メッセージ構造**(API-Mi-01 反映): `schema_version` + 元ペイロード + `error_kind` + `last_error_message` + `retry_count` + `correlation_id` + `failed_at` を含む構造化 DLQ ペイロード(Functional Design で確定)
+
+### 4.5.5 Rate-Limit / Retry-After ヘッダ規約(API-M-02 反映)
+
+`429 Too Many Requests` / `503 Service Unavailable` レスポンスには以下を必ず付与:
+- `Retry-After`: 秒数(整数)または HTTP-date(RFC 9110)
+- `RateLimit-Limit`: ウィンドウ内最大リクエスト数(IETF draft `draft-ietf-httpapi-ratelimit-headers`)
+- `RateLimit-Remaining`: 残数
+- `RateLimit-Reset`: ウィンドウリセットまでの秒数
+
+### 4.5.6 Trace-ID / Correlation-ID 伝搬(API-M-09 反映)
+
+リクエスト / Queue ペイロード / 監査ログを横断する単一 ID を `correlation_id`(UUID v7 推奨、時系列ソート可)で表現:
+- **HTTP リクエスト境界**: `X-Request-ID` ヘッダ受信時はそれを採用、未指定なら新規生成
+- **Queue 境界**: `QueueEnvelope.correlation_id` フィールド(全 7 Queue 共通)
+- **ログ境界**: `audit_logs.correlation_id` カラム + S-1 Logger の `correlation_id` フィールド(F-06)
+- **Phase 2 拡張**: W3C Trace Context (`traceparent` / `tracestate` ヘッダ) 採用は `[Phase 2: P2-09]` 可観測性で扱う
 
 ### 4.6.0 共通 HTTP セキュリティヘッダ middleware(NFR-4 SECURITY-04 / SECURITY-13 準拠)
 

@@ -266,7 +266,8 @@
 - **Cloudflare Workers ランタイム**: `workers-rs`(WASM 実行)
 - **Cloud Run 拡張時**: `axum` + tokio
 - **HTTP クライアント**: `reqwest`(REST 直叩き、Anthropic / Google / LINE すべて)
-- **OAuth2**: `yup-oauth2`(Google API のみ)
+- **OAuth2**: **`reqwest` + Web Crypto API による HTTP 直叩き実装**(`oauth2.googleapis.com/token` を直接呼び出し、JWT 検証は `wasm-compatible` の `jsonwebtoken` 等)。**`yup-oauth2` は採用しない**(`tokio` + `hyper` ネイティブ依存で `wasm32-unknown-unknown` ビルド不可、Cloudflare Workers WASM ランタイムで動作しないため。Round 10 GW-C-01 / PFFIT-M-04 反映)
+- **暗号化**: `aes-gcm` クレートまたは Web Crypto API(`subtle` の `crypto.subtle.encrypt`)を採用、WASM 互換性は Foundation Unit-1 で Spike 検証
 - **シリアライズ**: `serde` + `serde_json`
 - **入力検証**: `validator` クレート
 - **テスト**: `proptest`(プロパティベース)+ 標準テスト
@@ -287,7 +288,7 @@
 
 ### 7.4 外部サービス連携
 - **Gmail API**: Push 通知(Pub/Sub Watch)+ Bearer トークン直叩き
-- **Google Calendar API**: REST 直叩き(`yup-oauth2` で認証)
+- **Google Calendar API**: REST 直叩き(OAuth トークンは `reqwest` + Web Crypto API で `oauth2.googleapis.com/token` を直接呼び出して取得、Bearer ヘッダで API 呼び出し)
 - **OAuth スコープ**: 読み取り + 書き込み(送信・編集を含むフルアクセス)
 - **LINE Messaging API**: REST 直叩き(署名検証含めて 100〜200 行)
 - **Anthropic API**: REST 直叩き(`reqwest` + JSON、Claude Haiku のみ)

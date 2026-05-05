@@ -226,9 +226,86 @@
   - **Given** ユーザーへの設定変更や承認/却下のリクエスト
   - **When** Bot がインタラクションを設計する
   - **Then** **テキスト入力を要求しない**設計とする(LINE Quick Reply / Postback Action / Flex Message のボタンを多用)。例外は将来「請求 CSV 2026-04」のような明確なコマンドのみで、それも候補ボタン化を検討する
+- **AC-6 (LINE Webhook イベントタイプ網羅 — Round 10 LINE-C-04 反映)**:
+  - **Given** LINE Webhook で受信し得る全イベントタイプ
+  - **When** Webhook ハンドラを実装する
+  - **Then** 以下のイベントを少なくとも受信ロジックで網羅する(処理は他 Story に委譲):
+    - `follow`(友だち追加)→ F-04.1 ハンドラ起動(welcome + オンボーディング誘導)
+    - `unfollow`(ブロック / 友だち解除)→ F-04.2 ハンドラ起動(Push 停止フラグ)
+    - `message`(自由テキスト)→ MVP は「ボタンを使ってください」定型返信 + 運用者ログ([Phase 2: P2-NN] 自然言語ルーティング)
+    - `postback`(ボタンタップ)→ A-9 NotifyUser ハンドラへ
+    - `accountLink`(`[Phase 2: P2-02]` LIFF 連携時)、`videoPlayComplete` 等は MVP では無視
+  - **Then** 未対応イベントは `audit_logs` に記録するのみで Webhook は 200 を返す(LINE 仕様)
 
 **Traceability**:
 - Implements: FR-5, NFR-4 SECURITY-05, F-08(P2 配慮)
+
+---
+
+### Story F-04.1: LINE friend-follow イベント処理(welcome + オンボーディング誘導)
+
+**As a** 新規 MC ユーザー
+**I want** LINE 公式アカウントを友だち追加すると welcome メッセージが届き、Google 認可へのオンボーディング動線が示される
+**so that** F-03 OAuth に進む経路が明確になり、何をすればいいかわからずに離脱しない
+
+**Priority**: MUST
+**Size**: S
+**Type**: Enabler Story
+**Round 10 LINE-C-05 反映**で新規追加(F-04 から分離)
+
+**Acceptance Criteria**:
+- **AC-1 (welcome メッセージ送出)**:
+  - **Given** LINE Webhook で `follow` イベントを受信
+  - **When** 該当 `userId` が `users` テーブルに **未登録**
+  - **Then** Reply API(`reply_token` 利用、Webhook 5 秒制約内に同期送出)で welcome メッセージ + 「Google と連携する」ボタン(F-03 オンボーディング URL = `<base-domain>/onboard/start?line_user_id=...`)を送信
+- **AC-2 (再フォロー対応)**:
+  - **Given** `follow` イベント受信時に `userId` が `users` に登録済み(過去にフォロー → ブロック解除のケース)
+  - **When** `users.deletion_started_at IS NULL` かつ既存 OAuth トークンが有効
+  - **Then** 「おかえりなさい」+ 現在の状態(処理中案件件数等)を返信
+  - **Then** OAuth トークンが無効なら「再認可してください」誘導
+- **AC-3 (Webhook 早期 ack)**:
+  - **Given** `follow` イベント
+  - **When** Reply API 送出が遅延 / 失敗
+  - **Then** 5 秒以内に Webhook 200 を返し、Reply 失敗は audit_logs に記録(F-08 MessageCatalog で fallback Push を Cron で再送)
+
+**Traceability**:
+- Implements: FR-5, F-03(OAuth オンボーディング動線)
+- Depends on: F-04 AC-6(イベントタイプ網羅)、F-03(OAuth セットアップ)
+
+---
+
+### Story F-04.2: LINE unfollow / ブロック イベント処理(Push 停止 + 課金事故防止)
+
+**As a** サービス運営者
+**I want** ユーザーが LINE 公式アカウントをブロック / 友だち解除した場合に Push 通信を停止する
+**so that** ブロック済みユーザーへの Push が空打ちで課金されたり、エラー LOG で運用者に誤検知が出続けたりしない
+
+**Priority**: MUST
+**Size**: S
+**Type**: Enabler Story
+**Round 10 LINE-C-04 / Tier 1-1 連動**(NFR-7 コスト制約)で新規追加
+
+**Acceptance Criteria**:
+- **AC-1 (unfollow 検知 → push 停止フラグ)**:
+  - **Given** LINE Webhook で `unfollow` イベントを受信
+  - **When** 該当 `userId` が `users` に登録済み
+  - **Then** `users.line_push_blocked_at` を SET(Cron / Queue Consumer は Push 送信前にこのフラグを必ずチェックし、`true` なら Push をスキップして audit_logs に `push_skipped_blocked` を記録)
+- **AC-2 (Gmail / カレンダー処理は継続)**:
+  - **Given** `line_push_blocked_at IS NOT NULL` 状態
+  - **When** Gmail 取込 / 抽出 / カレンダー登録の処理が発生
+  - **Then** **これらは継続**(LINE 通知のみ停止、データ取込は止めない)。再フォロー時に「処理済み案件一覧」を提示するため
+- **AC-3 (再フォロー時のフラグ解除)**:
+  - **Given** ブロック後に `follow` イベントを再受信
+  - **When** F-04.1 AC-2(再フォロー対応)発火
+  - **Then** `users.line_push_blocked_at = NULL` に戻し、Push 再開
+- **AC-4 (長期ブロックユーザーのコスト保護)**:
+  - **Given** `line_push_blocked_at` が **90 日以上**経過
+  - **When** Cron が定期チェック
+  - **Then** Gmail Watch を停止(`stop` API)し、`users.watch_status = 'paused_user_blocked'` に変更(コスト発生源を物理停止。再フォロー時に F-04.1 が Watch 再開誘導)
+
+**Traceability**:
+- Implements: FR-5, NFR-7(コスト)
+- Depends on: F-04 AC-6(イベントタイプ網羅)、U1-EC-03(Watch 再登録基盤)
 
 ---
 
@@ -423,7 +500,7 @@
   - **When** 永続化する
   - **Then** **Web Crypto API の AES-256-GCM** で暗号化、暗号鍵は `TOKEN_ENC_KEY`(Wrangler secrets)から取得
   - **Then** ノンス(96-bit IV)はレコードごとにランダム生成
-  - **Then** **保存形式**(W6 修正反映、`application-design.md` §7.1 / `data-model.md` §2 と整合): BLOB カラム `oauth_tokens.encrypted_refresh_token` には `{nonce(12B)}:{ciphertext+tag}` のみを格納し、**鍵世代識別子 `key_id` は独立カラム** `oauth_tokens.key_id`(TEXT)で管理(検索効率と冗長排除のため、`key_id` を信頼の単一情報源とする)
+  - **Then** **保存形式**(W6 修正反映 + Round 10 DB-C-05 反映、`application-design.md` §7.1 / `data-model.md` §2 と整合): BLOB カラム `oauth_tokens.encrypted_refresh_token` には **バイナリ固定長連結** `nonce(12B) ‖ ciphertext ‖ tag(16B)` のみを格納し(オフセットで分離、ASCII 区切り文字は使わない — nonce / ciphertext がバイト 0x3A 等を含み得てバイナリ汚染するため)、**鍵世代識別子 `key_id` は独立カラム** `oauth_tokens.key_id`(TEXT)で管理(検索効率と冗長排除のため、`key_id` を信頼の単一情報源とする)
   - **Then** 復号時は `oauth_tokens.key_id` で鍵世代を識別 → 該当世代の鍵で復号(ローテーション時の旧鍵フォールバック対応)
   - **Note**: 改ざん検知のための AAD(additional_data)に何を含めるかは Functional Design で確定(`user_id` 等の不変識別子を採用予定。`key_id` を AAD に含めると鍵ローテーション時の取り扱いが複雑化するため独立カラム化と整合させて分離)
 - **AC-4 (ローテーション手順 — 短時間ダウンタイム許容)**:
@@ -821,17 +898,52 @@
 **Type**: Edge Case
 
 **Acceptance Criteria**:
-- **AC-1 (Cron 再登録)**:
-  - **Given** Cron Trigger が定時実行
-  - **When** Watch 有効期限が 24 時間以内
+- **AC-1 (Cron 再登録 — 残 48 時間警告)**:
+  - **Given** Cron Trigger が定時実行(時次推奨)
+  - **When** Watch 有効期限(`users.watch_expires_at`)まで **48 時間以内**(Round 10 GW-C-02 反映、Gmail Watch 公式仕様 7 日 = 168h を踏まえ早期警告)
   - **Then** `users.watch` を再呼び出しして延長する
 - **AC-2 (失敗通知)**:
   - **Given** Watch 再登録が失敗(OAuth 失効等)
   - **When** エラーが発生
-  - **Then** ユーザーに LINE で「再認可してください」と通知
+  - **Then** ユーザーに LINE で「再認可してください」と通知(F-08 MessageCatalog 経由)
 
 **Traceability**:
 - Implements: FR-1, NFR-3
+
+---
+
+### Story U1-EC-04: [Edge] Gmail Watch 失効後の historyId 再ベースライン取得
+
+**As a** MC
+**I want** Gmail Watch が完全失効(`404 historyNotFound` 状態)した場合でもメール取りこぼしせず復旧する
+**so that** βテスト中に「メールが届かなくなった」事故が永続化しない
+
+**Priority**: MUST
+**Size**: M
+**Type**: Edge Case
+**Round 10 GW-C-02 / Tier 2-6 反映**で新規追加
+
+**Acceptance Criteria**:
+- **AC-1 (historyNotFound 検知)**:
+  - **Given** Gmail Push 通知の `historyId` が古すぎて Gmail 側でローテーション済(7 日超過 etc)
+  - **When** `users.history.list?startHistoryId=<old>` を呼び出して `404 historyNotFound` または `400 invalidHistoryId` が返る
+  - **Then** 当該ユーザーの `users.watch_status = 'expired_baseline_lost'` を立て、A-2 IngestMail を一時停止
+- **AC-2 (再ベースライン取得 saga)**:
+  - **Given** `watch_status = 'expired_baseline_lost'` のユーザー
+  - **When** Cron(または管理 API トリガー)で復旧 saga を開始
+  - **Then** ① `users.watch` を再呼び出しして新規 historyId を取得 → ② 新 `historyId` を `users` に保存 → ③ ベースライン取得期間中の取りこぼしメールを `users.messages.list?q=after:<watch_lost_at>&label:INBOX` で取得 → ④ 取得した各メールを A-2 IngestMail と同じ流れに投入 → ⑤ `watch_status = 'active'` に戻す
+- **AC-3 (取りこぼし監視)**:
+  - **Given** 復旧 saga 中
+  - **When** ベースライン取得で `messages.list` が空、または期待件数(過去同期間平均)と乖離
+  - **Then** 運用者 LINE グループにアラート(F-14 連動、SECURITY-14)
+- **AC-4 (β テスト目標)**:
+  - **Given** β テスト期間中
+  - **When** `watch_status = 'expired_baseline_lost'` の発生頻度を集計
+  - **Then** 月あたり 0 回が目標(複数発生する場合は U1-EC-03 の Cron 頻度を時次より細かくする)
+
+**Traceability**:
+- Implements: FR-1, NFR-3, NFR-6
+- Depends on: U1-EC-03(Watch 再登録基盤)
 
 ---
 
@@ -1946,7 +2058,7 @@ Q5 = B により Phase 2 はタイトルと概要のみ記述する。詳細化�
 | Use Case 5 (F5) | 7 | 6 | 0 | 1 |
 | Use Case 6 (F6) | 6 | 5 | 0 | 1 |
 | Use Case 7 (F7) | 5 | 4 | 0 | 1 |
-| Use Case 8 (F8) | **0(Phase 2 へ移動)** | — | — | — |
+| ~~Use Case 8 (F8)~~ | **— (Phase 2 P2-08 へ全面移管、本統計の MVP 対象外)** | — | — | — |
 | Phase 2 | 11 active + 1 retired (P2-02〜P2-12 概略 = active 11 件、F8 CSV / アカウント削除高度化 / コーパス取込 / 税務 / 招待 / レポート 等。P2-01 は Round 6 で取り下げ済 = retired 1 件) | — | — | — |
 | **合計(MVP+Foundation)** | **58** | **32** | **13** | **13** |
 | **総計(MVP+Foundation 58 + Phase 2 active 11)** | **69** | — | — | — |

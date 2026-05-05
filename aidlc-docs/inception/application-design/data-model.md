@@ -88,7 +88,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 | カラム | 型 | 制約 | 目的・用途 |
 |--------|------|------|-----------|
 | `user_id` | TEXT | PK / FK → `users(id)` ON DELETE CASCADE | ユーザー紐付け。1 ユーザー = 1 トークンレコード |
-| `encrypted_refresh_token` | BLOB | NOT NULL | AES-256-GCM 暗号化されたリフレッシュトークン本体。フォーマット: `{nonce(12B)}:{ciphertext+tag}` |
+| `encrypted_refresh_token` | BLOB | NOT NULL | AES-256-GCM 暗号化されたリフレッシュトークン本体。**バイナリ形式の固定長連結**: `nonce(12B) ‖ ciphertext ‖ tag(16B)`(`‖` は連結。区切り文字を使わずオフセットで分離 — `nonce = bytes[0..12]` / `ciphertext = bytes[12..len-16]` / `tag = bytes[len-16..]`)。ASCII 区切り文字(`:` 等)は nonce / ciphertext がバイト 0x3A を含み得るため使用しない |
 | `key_id` | TEXT | NOT NULL | 暗号化に使った鍵世代の識別子(F-09 ローテーション対応)。**TEXT 型の理由**: 人間可読(`"v1"` / `"v2"` / `"key-2025-q1"` 等任意命名)+ 鍵命名規則の柔軟性確保のため。復号時に該当世代の鍵を選択 |
 | `scope` | TEXT | NOT NULL | 許可スコープ。例: `"gmail.modify gmail.send calendar.events"`。トークンが必要な権限を持つかの事前チェックに利用 |
 | `expires_at` | TEXT | NULL 可 | **アクセストークン(短命)の有効期限**。Google OAuth では access_token はリフレッシュ時に発行され、Gmail / Calendar API 呼び出しヘッダ(`Authorization: Bearer ...`)で使用される。通常 1 時間で失効するためリフレッシュトークンから都度再発行。**本カラムは access_token 自体ではなくその期限のみを保持**(access_token は短命のためメモリ保持で十分、永続化しない) |
@@ -153,6 +153,8 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 **インデックス**:
 - `idx_messages_gmail ON messages(user_id, gmail_message_id)`(UNIQUE):Push 通知の冪等性確認 / 重複取込防止
+- `idx_messages_thread ON messages(user_id, gmail_thread_id)`:A-4 ExtractCase の同一スレッド検索(DB-M-03)
+- `idx_messages_history ON messages(user_id, history_id)`(UNIQUE):Pub/Sub at-least-once 配信耐性(DB-M-09)
 - `idx_messages_review ON messages(user_id, needs_review) WHERE needs_review = 1`:要確認メールの一覧画面用部分インデックス
 
 **書き込み**: A-2 IngestMail(初回保存)、A-3 ClassifyMail(分類結果更新)
@@ -253,6 +255,8 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 **インデックス**:
 - `idx_cases_user_status ON cases(user_id, status, deadline_at)`:ステータス別一覧 + 締切順
+- `idx_cases_source_message ON cases(source_message_id)`(UNIQUE):同募集メールから複数 case 作成を DB レベルで防止(DB-M-06)
+- `idx_cases_needs_action ON cases(user_id, needs_user_action) WHERE needs_user_action = 1`:要対応一覧 UI のための部分 index(DB-C-02)
 - `idx_cases_user_office ON cases(user_id, office_id)`:同一事務所案件の検索
 
 **書き込み**: A-4 ExtractCase(初回作成)、A-5 / A-6 / A-7 / A-8(`status` 更新)
@@ -306,7 +310,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 
 **インデックス**:
 - `idx_entries_case ON entries(case_id)`:案件→エントリー
-- `idx_entries_case_active ON entries(case_id) WHERE status != 'superseded'`:現役エントリー取得(部分インデックス)
+- `idx_entries_case_active ON entries(case_id) WHERE status != 'superseded'`(**UNIQUE 部分インデックス**、DATA-C-02):1 案件 = 1 active entry を DB レベルで強制(at-least-once Queue 二重実行で active 多重化を防ぐ)
 - `idx_entries_status ON entries(status)`:`[Phase 2: P2-08]` 請求 CSV エクスポート用
 
 **書き込み**: A-6 ComposeEntryDraft(初回作成)、A-3 / A-7(状態更新)、A-6(取り下げ時に旧 `superseded` 化 + 新 `pending` INSERT)
@@ -367,6 +371,7 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 **インデックス**:
 - `idx_calevents_case ON calendar_events(case_id)`:案件単位の一括操作
 - `idx_calevents_user ON calendar_events(user_id, state)`:ユーザー全体での状態別取得
+- `idx_calevents_google ON calendar_events(user_id, google_event_id)`(UNIQUE、DATA-C-01 / DB-M-05):at-least-once Queue 再配送時の Google Calendar 二重作成を DB レベルで防止
 
 **書き込み**: A-7 ManageCalendar(全 CRUD)
 **読み取り**: A-7(状態確認・削除対象抽出)、運用(整合性チェック)
@@ -461,12 +466,14 @@ D1(SQLite at edge)上の全 15 テーブルの詳細定義。各カラムの**�
 **インデックス**:
 - `idx_audit_user_time ON audit_logs(user_id, created_at)`:ユーザー別タイムライン
 - `idx_audit_action ON audit_logs(action, created_at)`:アクション種別ダッシュボード(F-14 監視)
+- `idx_audit_correlation ON audit_logs(correlation_id) WHERE correlation_id IS NOT NULL`:saga 全イベント追跡(障害解析、DB-C-03)
 
 **append-only 強制**(NFR-4 SECURITY-08 改竄防止の機械的保証、`consents` と同方針):
-- `CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ... RAISE(ABORT, ...)` で UPDATE を全面拒否(監査ログは過去レコードを書き換えてはならない)
-- `CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ... RAISE(ABORT, ...)` で通常の DELETE を拒否(物理削除は archive job のみ許容)
+- `CREATE TRIGGER trg_audit_no_update BEFORE UPDATE ... WHEN <user_id NULL 化以外の変更>` で **`user_id` を NULL 化する UPDATE のみ許可**(§17.3 アカウント削除 saga の匿名化に必要)、それ以外の列(`actor` / `action_source` / `action` / `target_kind` / `target_id` / `payload_json` / `result` / `error_kind` / `correlation_id` / `created_at` / `id`)を書き換える UPDATE は `RAISE(ABORT, ...)`
+- `CREATE TRIGGER trg_audit_no_delete BEFORE DELETE ... RAISE(ABORT, ...)` で通常の DELETE を拒否
 - DDL 詳細は `application-design.md` §3.3 参照
 - **アーカイブ運用**: 12 ヶ月超過レコードを R2 にエクスポートしてから D1 から削除する処理は、トリガー対象外の **専用 batch job(別接続 + 一時的 DELETE 権限)** で実施する設計(通常のアプリケーション層からは DELETE 不能を維持)
+- **§17.3 削除 saga との整合**: アカウント削除時に `audit_logs.user_id = NULL` 化を行うことで GDPR / 個情法 35 条「利用停止・消去の請求」に準拠しつつ、改竄防止と監査記録保管(F-06 / SECURITY-08)を両立
 
 **書き込み**: 全ユースケース(成功・失敗の両方、INSERT のみ)、F-06 Logger 経由
 **読み取り**: 運用(障害解析)、F-14 メトリクス集計、コンプライアンス監査

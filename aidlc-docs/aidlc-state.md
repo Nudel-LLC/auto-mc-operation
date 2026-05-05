@@ -32,7 +32,7 @@
 - **拡張時プラットフォーム**: GCP Cloud Run (axum + tokio)
 - **DB**: D1 (SQLite) + KV + R2 → Cloud SQL (PostgreSQL)
 - **HTTP クライアント**: reqwest(Anthropic / Google / LINE はすべて REST 直叩き)
-- **OAuth2**: yup-oauth2(Google API のみ)
+- **OAuth2**: `reqwest` + Web Crypto API による HTTP 直叩き(Round 10 GW-C-01: yup-oauth2 は WASM 非対応のため不採用)
 - **LLM**: Claude Haiku
 - **テスト**: proptest(プロパティベース)+ 標準テスト
 
